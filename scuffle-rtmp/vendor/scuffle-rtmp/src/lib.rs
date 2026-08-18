@@ -161,6 +161,11 @@ mod tests {
         let addr = listener.local_addr().unwrap();
 
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets");
+        let input = dir.join("avc_aac.mp4");
+        if !input.is_file() {
+            eprintln!("skipping RTMP integration test: {} is not present", input.display());
+            return;
+        }
 
         let _ffmpeg = Command::new("ffmpeg")
             .args([
@@ -168,7 +173,7 @@ mod tests {
                 "debug",
                 "-re",
                 "-i",
-                dir.join("avc_aac.mp4").to_str().expect("failed to get path"),
+                input.to_str().expect("failed to get path"),
                 "-r",
                 "30",
                 "-t",
@@ -295,6 +300,11 @@ mod tests {
         let addr = listener.local_addr().unwrap();
 
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets");
+        let input = dir.join("avc_aac.mp4");
+        if !input.is_file() {
+            eprintln!("skipping RTMP integration test: {} is not present", input.display());
+            return;
+        }
 
         let mut ffmpeg = Command::new("ffmpeg")
             .args([
@@ -302,7 +312,7 @@ mod tests {
                 "debug",
                 "-re",
                 "-i",
-                dir.join("avc_aac.mp4").to_str().expect("failed to get path"),
+                input.to_str().expect("failed to get path"),
                 "-r",
                 "30",
                 "-t",

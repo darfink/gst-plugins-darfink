@@ -1,5 +1,3 @@
-use std::io::Cursor;
-
 use scuffle_rtmp::ServerSession;
 use scuffle_rtmp::session::server::{ServerSessionError, SessionData, SessionHandler};
 use tokio::net::TcpListener;
@@ -13,12 +11,10 @@ impl SessionHandler for Handler {
     async fn on_data(&mut self, _stream_id: u32, data: SessionData) -> Result<(), ServerSessionError> {
         match data {
             SessionData::Audio { data, .. } => {
-                let tag = scuffle_flv::audio::AudioData::demux(&mut Cursor::new(data)).unwrap();
-                tracing::info!("audio: {:?}", tag);
+                tracing::info!("audio payload: {} bytes", data.len());
             }
             SessionData::Video { data, .. } => {
-                let tag = scuffle_flv::video::VideoData::demux(&mut Cursor::new(data)).unwrap();
-                tracing::info!("video: {:?}", tag);
+                tracing::info!("video payload: {} bytes", data.len());
             }
             SessionData::Amf0 { data, timestamp } => {
                 tracing::info!("amf0 data, timestamp: {timestamp}, data: {data:?}");

@@ -194,6 +194,32 @@ fn produce_flv_without_element(muxer: &str) -> Vec<u8> {
   output
 }
 
+/// Return the audio/video tags from an FLV, excluding muxer metadata tags.
+///
+/// The muxers include a wall-clock `creationdate` in `onMetaData`, so two
+/// otherwise identical pipelines started in different seconds cannot produce
+/// identical complete files. The element's transparency contract concerns the
+/// media bytes, not metadata generated independently by the muxer.
+fn media_tags(flv: &[u8]) -> Vec<&[u8]> {
+  const FLV_HEADER_LEN: usize = 9;
+
+  assert!(flv.len() >= FLV_HEADER_LEN + 4, "short FLV");
+  let mut offset = FLV_HEADER_LEN + 4;
+  let mut tags = Vec::new();
+
+  while offset < flv.len() {
+    let header = parse_tag_header(&flv[offset..]).expect("complete FLV tag header");
+    let end = offset + header.total_len();
+    assert!(end <= flv.len(), "truncated FLV tag");
+    if matches!(header.tag_type, 8 | 9) {
+      tags.push(&flv[offset..end]);
+    }
+    offset = end;
+  }
+
+  tags
+}
+
 /// Extract subtitle cues via ffprobe, as `(pts_ms, text)`.
 fn ffprobe_cues(flv: &[u8]) -> Vec<(i64, String)> {
   let mut child = Command::new("ffmpeg")
@@ -309,27 +335,18 @@ fn av_only_input_gains_no_cues_of_our_own() {
 }
 
 #[test]
-fn passthrough_is_byte_identical_without_cues() {
+fn media_passthrough_is_byte_identical_without_cues() {
   init();
-  // The strongest statement of transparency: with priming disabled, the same
-  // pipeline with and without the element must produce identical bytes.
-  //
-  // Priming is deliberately excluded here rather than tested loosely. It adds
-  // exactly one tag by design, so asserting transparency around it would only
-  // restate the implementation; what matters is that the A/V bytes themselves
-  // are never touched.
+  // With priming disabled, the same pipeline with and without the element must
+  // produce identical audio/video tags. Metadata is excluded because the muxer
+  // generates a fresh creationdate each run.
   for muxer in MUXERS {
     if !muxer_available(muxer) {
       continue;
     }
     let injected = produce_flv_with(muxer, &[], false);
     let direct = produce_flv_without_element(muxer);
-    assert_eq!(
-      injected.len(),
-      direct.len(),
-      "{muxer}: element altered the byte count of an uncaptioned stream"
-    );
-    assert_eq!(injected, direct, "{muxer}: element altered an uncaptioned stream");
+    assert_eq!(media_tags(&injected), media_tags(&direct), "{muxer}: element altered media");
   }
 }
 
