@@ -1,0 +1,1834 @@
+diff -ruN a/.cargo_vcs_info.json b/.cargo_vcs_info.json
+--- a/.cargo_vcs_info.json	1970-01-01 01:00:01.000000000 +0100
++++ b/.cargo_vcs_info.json	1970-01-01 01:00:00.000000000 +0100
+@@ -1,6 +0,0 @@
+-{
+-  "git": {
+-    "sha1": "2445114cc326ca8862a72355db555fd0a7fa16f9"
+-  },
+-  "path_in_vcs": "crates/rtmp"
+-}
+\ No newline at end of file
+diff -ruN a/Cargo.lock b/Cargo.lock
+--- a/Cargo.lock	1970-01-01 01:00:01.000000000 +0100
++++ b/Cargo.lock	2026-08-05 19:47:30.059122967 +0200
+@@ -3,55 +3,25 @@
+ version = 4
+ 
+ [[package]]
+-name = "addr2line"
+-version = "0.24.2"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "dfbe277e56a376000877090da837660b4427aad530e3028d44e0bffe4f89a1c1"
+-dependencies = [
+- "gimli",
+-]
+-
+-[[package]]
+-name = "adler2"
+-version = "2.0.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "512761e0bb2578dd7380c6baaa0f4ce03e84f95e960231d1dec8bf4d7d6e2627"
+-
+-[[package]]
+ name = "aho-corasick"
+-version = "1.1.3"
++version = "1.1.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "8e60d3430d3a69478ad0993f19238d2df97c507009a52b3c10addcd7f6bcb916"
++checksum = "c982642fa9e8606056828ee9a8505737230110bb1099153c79efe865c59d12ba"
+ dependencies = [
+  "memchr",
+ ]
+ 
+ [[package]]
+ name = "autocfg"
+-version = "1.4.0"
++version = "1.5.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
+-
+-[[package]]
+-name = "backtrace"
+-version = "0.3.75"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6806a6321ec58106fea15becdad98371e28d92ccbc7c8f1b3b6dd724fe8f1002"
+-dependencies = [
+- "addr2line",
+- "cfg-if",
+- "libc",
+- "miniz_oxide",
+- "object",
+- "rustc-demangle",
+- "windows-targets",
+-]
++checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
+ 
+ [[package]]
+ name = "bitflags"
+-version = "2.9.1"
++version = "2.13.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1b8e56985ec62d17e9c1001dc89c88ecd7dc08e47eba5ec7c29c7b5eeecde967"
++checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
+ 
+ [[package]]
+ name = "bitmask-enum"
+@@ -60,7 +30,7 @@
+ checksum = "e6cbbb8f56245b5a479b30a62cdc86d26e2f35c2b9f594bc4671654b03851380"
+ dependencies = [
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+@@ -80,24 +50,24 @@
+ 
+ [[package]]
+ name = "bytes"
+-version = "1.10.1"
++version = "1.12.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
++checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
+ 
+ [[package]]
+ name = "bytestring"
+-version = "1.4.0"
++version = "1.5.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e465647ae23b2823b0753f50decb2d5a86d2bb2cac04788fafd1f80e45378e5f"
++checksum = "86566c496f2f47d9b8147a4c8b02ffdb69c919fe0c2b2e7195d22cbba0e635c9"
+ dependencies = [
+  "bytes",
+ ]
+ 
+ [[package]]
+ name = "cfg-if"
+-version = "1.0.0"
++version = "1.0.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
++checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+ 
+ [[package]]
+ name = "convert_case"
+@@ -119,9 +89,9 @@
+ 
+ [[package]]
+ name = "crypto-common"
+-version = "0.1.6"
++version = "0.1.7"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1bfb12502f3fc46cca1bb51ac28df9d618d813cdc3d2f25b9fe775a34af26bb3"
++checksum = "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a"
+ dependencies = [
+  "generic-array",
+  "typenum",
+@@ -140,18 +110,28 @@
+ 
+ [[package]]
+ name = "document-features"
+-version = "0.2.11"
++version = "0.2.12"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "95249b50c6c185bee49034bcb378a49dc2b5dff0be90ff6616d31d64febab05d"
++checksum = "d4b8a88685455ed29a21542a33abd9cb6510b6b129abadabdcef0f4c55bc8f61"
+ dependencies = [
+  "litrs",
+ ]
+ 
+ [[package]]
++name = "errno"
++version = "0.3.14"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
++dependencies = [
++ "libc",
++ "windows-sys",
++]
++
++[[package]]
+ name = "fastrand"
+-version = "2.3.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
++checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
+ 
+ [[package]]
+ name = "fmtools"
+@@ -161,21 +141,21 @@
+ 
+ [[package]]
+ name = "futures-core"
+-version = "0.3.31"
++version = "0.3.33"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
++checksum = "2cd50c473c80f6d7c3670a752354b8e569b1a7cbfdc0419ec88e5edad85e0dc7"
+ 
+ [[package]]
+ name = "futures-io"
+-version = "0.3.31"
++version = "0.3.33"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9e5c1b78ca4aae1ac06c48a526a655760685149f0d465d21f37abfe57ce075c6"
++checksum = "4577ecaa3c4f96589d473f679a71b596316f6641bc350038b962a5daf0085d7a"
+ 
+ [[package]]
+ name = "futures-lite"
+-version = "2.6.0"
++version = "2.6.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f5edaec856126859abb19ed65f39e90fea3a9574b9707f13539acf4abf7eb532"
++checksum = "f78e10609fe0e0b3f4157ffab1876319b5b0db102a2c60dc4626306dc46b44ad"
+ dependencies = [
+  "fastrand",
+  "futures-core",
+@@ -186,9 +166,9 @@
+ 
+ [[package]]
+ name = "futures-sink"
+-version = "0.3.31"
++version = "0.3.33"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e575fab7d1e0dcb8d0c7bcf9a63ee213816ab51902e6d244a95819acacf1d4f7"
++checksum = "e34418ac499d6305c2fb5ad0ed2f6ac998c5f8ca209b4510f7f94242c647e307"
+ 
+ [[package]]
+ name = "generic-array"
+@@ -202,23 +182,17 @@
+ 
+ [[package]]
+ name = "getrandom"
+-version = "0.3.3"
++version = "0.3.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "26145e563e54f2cadc477553f1ec5ee650b00862f0a58bcd12cbdc5f0ea2d2f4"
++checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
+ dependencies = [
+  "cfg-if",
+  "libc",
+  "r-efi",
+- "wasi 0.14.2+wasi-0.2.4",
++ "wasip2",
+ ]
+ 
+ [[package]]
+-name = "gimli"
+-version = "0.31.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
+-
+-[[package]]
+ name = "hmac"
+ version = "0.12.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -229,9 +203,9 @@
+ 
+ [[package]]
+ name = "itoa"
+-version = "1.0.15"
++version = "1.0.18"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
++checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+ 
+ [[package]]
+ name = "lazy_static"
+@@ -241,66 +215,55 @@
+ 
+ [[package]]
+ name = "libc"
+-version = "0.2.172"
++version = "0.2.189"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d750af042f7ef4f724306de029d18836c26c1765a54a6a3f094cbd23a7267ffa"
++checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
+ 
+ [[package]]
+ name = "litrs"
+-version = "0.4.1"
++version = "1.0.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b4ce301924b7887e9d637144fdade93f9dfff9b60981d4ac161db09720d39aa5"
++checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
+ 
+ [[package]]
+ name = "lock_api"
+-version = "0.4.13"
++version = "0.4.14"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "96936507f153605bddfcda068dd804796c84324ed2510809e5b2a624c81da765"
++checksum = "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965"
+ dependencies = [
+- "autocfg",
+  "scopeguard",
+ ]
+ 
+ [[package]]
+ name = "log"
+-version = "0.4.27"
++version = "0.4.33"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
++checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
+ 
+ [[package]]
+ name = "memchr"
+-version = "2.7.4"
++version = "2.8.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
+-
+-[[package]]
+-name = "miniz_oxide"
+-version = "0.8.8"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "3be647b768db090acb35d5ec5db2b0e1f1de11133ca123b9eacf5137868f892a"
+-dependencies = [
+- "adler2",
+-]
++checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+ 
+ [[package]]
+ name = "mio"
+-version = "1.0.4"
++version = "1.2.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "78bed444cc8a2160f01cbcf811ef18cac863ad68ae8ca62092e8db51d51c761c"
++checksum = "30d65c71f1ce40ab09135ce117d742b9f8a19ff91a41a8b57ed50bc2de59c427"
+ dependencies = [
+  "libc",
+- "wasi 0.11.0+wasi-snapshot-preview1",
+- "windows-sys 0.59.0",
++ "wasi",
++ "windows-sys",
+ ]
+ 
+ [[package]]
+ name = "nu-ansi-term"
+-version = "0.46.0"
++version = "0.50.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "77a8165726e8236064dbb45459242600304b42a5ea24ee2948e18e023bf7ba84"
++checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
+ dependencies = [
+- "overload",
+- "winapi",
++ "windows-sys",
+ ]
+ 
+ [[package]]
+@@ -311,7 +274,7 @@
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+@@ -333,25 +296,10 @@
+ ]
+ 
+ [[package]]
+-name = "object"
+-version = "0.36.7"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "62948e14d923ea95ea2c7c86c71013138b66525b86bdc08d2dcc262bdb497b87"
+-dependencies = [
+- "memchr",
+-]
+-
+-[[package]]
+ name = "once_cell"
+-version = "1.21.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+-
+-[[package]]
+-name = "overload"
+-version = "0.1.1"
++version = "1.21.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
++checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+ 
+ [[package]]
+ name = "parking"
+@@ -361,9 +309,9 @@
+ 
+ [[package]]
+ name = "parking_lot"
+-version = "0.12.4"
++version = "0.12.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "70d58bf43669b5795d1576d0641cfb6fbb2057bf629506267a92807158584a13"
++checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
+ dependencies = [
+  "lock_api",
+  "parking_lot_core",
+@@ -371,22 +319,22 @@
+ 
+ [[package]]
+ name = "parking_lot_core"
+-version = "0.9.11"
++version = "0.9.12"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "bc838d2a56b5b1a6c25f55575dfc605fabb63bb2365f6c2353ef9159aa69e4a5"
++checksum = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
+ dependencies = [
+  "cfg-if",
+  "libc",
+  "redox_syscall",
+  "smallvec",
+- "windows-targets",
++ "windows-link",
+ ]
+ 
+ [[package]]
+ name = "pin-project-lite"
+-version = "0.2.16"
++version = "0.2.17"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "3b3cff922bd51709b605d9ead9aa71031d81447142d828eb4a6eba76fe619f9b"
++checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
+ 
+ [[package]]
+ name = "ppv-lite86"
+@@ -399,33 +347,33 @@
+ 
+ [[package]]
+ name = "proc-macro2"
+-version = "1.0.95"
++version = "1.0.107"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
++checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
+ dependencies = [
+  "unicode-ident",
+ ]
+ 
+ [[package]]
+ name = "quote"
+-version = "1.0.40"
++version = "1.0.47"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1885c039570dc00dcb4ff087a89e185fd56bae234ddc7f056a945bf36467248d"
++checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
+ dependencies = [
+  "proc-macro2",
+ ]
+ 
+ [[package]]
+ name = "r-efi"
+-version = "5.2.0"
++version = "5.3.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "74765f6d916ee2faa39bc8e68e4f3ed8949b48cccdac59983d287a7cb71ce9c5"
++checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
+ 
+ [[package]]
+ name = "rand"
+-version = "0.9.1"
++version = "0.9.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9fbfd9d094a40bf3ae768db9361049ace4c0e04a4fd6b359518bd7b73a73dd97"
++checksum = "b9ef1d0d795eb7d84685bca4f72f3649f064e6641543d3a8c415898726a57b41"
+ dependencies = [
+  "rand_chacha",
+  "rand_core",
+@@ -443,27 +391,27 @@
+ 
+ [[package]]
+ name = "rand_core"
+-version = "0.9.3"
++version = "0.9.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
++checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
+ dependencies = [
+  "getrandom",
+ ]
+ 
+ [[package]]
+ name = "redox_syscall"
+-version = "0.5.12"
++version = "0.5.18"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "928fca9cf2aa042393a8325b9ead81d2f0df4cb12e1e24cef072922ccd99c5af"
++checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
+ dependencies = [
+  "bitflags",
+ ]
+ 
+ [[package]]
+ name = "regex"
+-version = "1.11.1"
++version = "1.13.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b544ef1b4eac5dc2db33ea63606ae9ffcfac26c1416a2806ae0bf5f56b201191"
++checksum = "f020237b6c8eed93db2e2cb53c00c60a8e1bc73da7d073199a1180401450218d"
+ dependencies = [
+  "aho-corasick",
+  "memchr",
+@@ -473,9 +421,9 @@
+ 
+ [[package]]
+ name = "regex-automata"
+-version = "0.4.9"
++version = "0.4.18"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "809e8dc61f6de73b46c85f4c96486310fe304c434cfa43669d7b40f711150908"
++checksum = "ad8553b9b26413251cbf30e620595c7a41b3887f03da04579c0e6b0d6a06b4b2"
+ dependencies = [
+  "aho-corasick",
+  "memchr",
+@@ -484,21 +432,9 @@
+ 
+ [[package]]
+ name = "regex-syntax"
+-version = "0.8.5"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
+-
+-[[package]]
+-name = "rustc-demangle"
+-version = "0.1.24"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
+-
+-[[package]]
+-name = "ryu"
+-version = "1.0.20"
++version = "0.8.11"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
++checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
+ 
+ [[package]]
+ name = "scopeguard"
+@@ -508,9 +444,9 @@
+ 
+ [[package]]
+ name = "scuffle-amf0"
+-version = "0.2.3"
++version = "0.2.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "4b55b45354076ae2017e0807ed35d39f738913a61e5d06b33ee8a8a73dc4746d"
++checksum = "2db0c6c36b3c0ace0a46d73193d800374b6152de0e3209d0953078bd8eaa4e27"
+ dependencies = [
+  "byteorder",
+  "bytes",
+@@ -525,9 +461,9 @@
+ 
+ [[package]]
+ name = "scuffle-bytes-util"
+-version = "0.1.4"
++version = "0.1.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e6d4971a8aa0a40154b6ec53353a3c9adafb434a5cd52f248f7a06119a31896d"
++checksum = "0417748c2a42f4a08d4e634b68b1d64f22a8c24bef2e7ac93df33aa61202a45b"
+ dependencies = [
+  "byteorder",
+  "bytes",
+@@ -538,9 +474,9 @@
+ 
+ [[package]]
+ name = "scuffle-changelog"
+-version = "0.1.0"
++version = "0.1.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9dadfa0b0e4df5a971f9095f1542f61714464ff7af4e0bd96f8ac23399c0bfdc"
++checksum = "ee67e35c1d4a279a9e6cf0be74e54cbf38f5ee110e8f29b0cb4494530023a49d"
+ dependencies = [
+  "convert_case",
+  "fmtools",
+@@ -549,7 +485,7 @@
+  "regex",
+  "scuffle-workspace-hack",
+  "semver",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+@@ -612,40 +548,50 @@
+ 
+ [[package]]
+ name = "semver"
+-version = "1.0.26"
++version = "1.0.28"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "56e6fa9c48d24d85fb3de5ad847117517440f6beceb7798af16b4a87d616b8d0"
++checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
+ 
+ [[package]]
+ name = "serde"
+-version = "1.0.219"
++version = "1.0.229"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5f0e2c6ed6606019b4e29e69dbaba95b11854410e5347d525002456dbbb786b6"
++checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
++dependencies = [
++ "serde_core",
++]
++
++[[package]]
++name = "serde_core"
++version = "1.0.229"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "67dca2c9c51e58a4791a4b1ed58308b39c64224d349a935ab5039aa360942a48"
+ dependencies = [
+  "serde_derive",
+ ]
+ 
+ [[package]]
+ name = "serde_derive"
+-version = "1.0.219"
++version = "1.0.229"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5b0276cf7f2c73365f7157c8123c21cd9a50fbbd844757af28ca1f5925fc2a00"
++checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 3.0.3",
+ ]
+ 
+ [[package]]
+ name = "serde_json"
+-version = "1.0.140"
++version = "1.0.151"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
++checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
+ dependencies = [
+  "itoa",
+  "memchr",
+- "ryu",
+  "serde",
++ "serde_core",
++ "zmij",
+ ]
+ 
+ [[package]]
+@@ -670,27 +616,28 @@
+ 
+ [[package]]
+ name = "signal-hook-registry"
+-version = "1.4.5"
++version = "1.4.8"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9203b8055f63a2a00e2f593bb0510367fe707d7ff1e5c872de2f537b339e5410"
++checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
+ dependencies = [
++ "errno",
+  "libc",
+ ]
+ 
+ [[package]]
+ name = "smallvec"
+-version = "1.15.0"
++version = "1.15.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "8917285742e9f3e1683f0a9c4e6b57960b7314d0b08d30d1ecd426713ee2eee9"
++checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
+ 
+ [[package]]
+ name = "socket2"
+-version = "0.5.10"
++version = "0.6.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e22376abed350d73dd1cd119b57ffccad95b4e585a7cda43e286245ce23c0678"
++checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
+ dependencies = [
+  "libc",
+- "windows-sys 0.52.0",
++ "windows-sys",
+ ]
+ 
+ [[package]]
+@@ -701,9 +648,20 @@
+ 
+ [[package]]
+ name = "syn"
+-version = "2.0.101"
++version = "2.0.119"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "unicode-ident",
++]
++
++[[package]]
++name = "syn"
++version = "3.0.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "8ce2b7fc941b3a24138a0a7cf8e858bfc6a992e7978a068a5c760deb0ed43caf"
++checksum = "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+@@ -712,41 +670,39 @@
+ 
+ [[package]]
+ name = "thiserror"
+-version = "2.0.12"
++version = "2.0.19"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
++checksum = "09a43598840e33d5b0331f38c5e30d13bb11c11210a4b58f0d9b18a5a5eefcd9"
+ dependencies = [
+  "thiserror-impl",
+ ]
+ 
+ [[package]]
+ name = "thiserror-impl"
+-version = "2.0.12"
++version = "2.0.19"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "7f7cf42b4507d8ea322120659672cf1b9dbb93f8f2d4ecfd6e51350ff5b17a1d"
++checksum = "43cbfe0cf76104d42a574802844187e84a305e531ed54455f11fbde0f10541cd"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 3.0.3",
+ ]
+ 
+ [[package]]
+ name = "thread_local"
+-version = "1.1.8"
++version = "1.1.10"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "8b9ef9bad013ada3808854ceac7b46812a6465ba368859a37e2100283d2d719c"
++checksum = "1ad99c4c6d32803332c548b1af0540b357b3f5fc0be8f6c6bfe8b2e6ae784070"
+ dependencies = [
+  "cfg-if",
+- "once_cell",
+ ]
+ 
+ [[package]]
+ name = "tokio"
+-version = "1.45.1"
++version = "1.53.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "75ef51a33ef1da925cea3e4eb122833cb377c61439ca401b770f54902b806779"
++checksum = "202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed"
+ dependencies = [
+- "backtrace",
+  "bytes",
+  "libc",
+  "mio",
+@@ -755,25 +711,25 @@
+  "signal-hook-registry",
+  "socket2",
+  "tokio-macros",
+- "windows-sys 0.52.0",
++ "windows-sys",
+ ]
+ 
+ [[package]]
+ name = "tokio-macros"
+-version = "2.5.0"
++version = "2.7.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6e06d43f1345a3bcd39f6a56dbb7dcab2ba47e68e8ac134855e7e2bdbaf8cab8"
++checksum = "78773a2a397f451582ce068015985c33193cf6dea8b74d2a639fe457b2f07b0e"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 3.0.3",
+ ]
+ 
+ [[package]]
+ name = "tokio-util"
+-version = "0.7.15"
++version = "0.7.19"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "66a539a9ad6d5d281510d5bd368c973d636c02dbf8a67300bfb6b950696ad7df"
++checksum = "494815d09bf52b5548659851081238f0ca39ff638363907596da739561c62c52"
+ dependencies = [
+  "bytes",
+  "futures-core",
+@@ -784,9 +740,9 @@
+ 
+ [[package]]
+ name = "tracing"
+-version = "0.1.41"
++version = "0.1.44"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "784e0ac535deb450455cbfa28a6f0df145ea1bb7ae51b821cf5e7927fdcfbdd0"
++checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
+ dependencies = [
+  "pin-project-lite",
+  "tracing-attributes",
+@@ -795,20 +751,20 @@
+ 
+ [[package]]
+ name = "tracing-attributes"
+-version = "0.1.28"
++version = "0.1.31"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "395ae124c09f9e6918a2310af6038fba074bcf474ac352496d5910dd59a2226d"
++checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+ name = "tracing-core"
+-version = "0.1.33"
++version = "0.1.36"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e672c95779cf947c5311f83787af4fa8fffd12fb27e4993211a84bdfd9610f9c"
++checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
+ dependencies = [
+  "once_cell",
+  "valuable",
+@@ -827,9 +783,9 @@
+ 
+ [[package]]
+ name = "tracing-subscriber"
+-version = "0.3.19"
++version = "0.3.23"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e8189decb5ac0fa7bc8b96b7cb9b2701d60d48805aca84a238004d665fcc4008"
++checksum = "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319"
+ dependencies = [
+  "nu-ansi-term",
+  "sharded-slab",
+@@ -841,21 +797,21 @@
+ 
+ [[package]]
+ name = "typenum"
+-version = "1.18.0"
++version = "1.20.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1dccffe3ce07af9386bfd29e80c0ab1a8205a2fc34e4bcd40364df902cfa8f3f"
++checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
+ 
+ [[package]]
+ name = "unicode-ident"
+-version = "1.0.18"
++version = "1.0.24"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5a5f39404a5da50712a4c1eecf25e90dd62b613502b7e925fd4e4d19b5c96512"
++checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+ 
+ [[package]]
+ name = "unicode-segmentation"
+-version = "1.12.0"
++version = "1.13.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f6ccf251212114b54433ec949fd6a7841275f9ada20dddd2f29e9ceea4501493"
++checksum = "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8"
+ 
+ [[package]]
+ name = "valuable"
+@@ -871,148 +827,62 @@
+ 
+ [[package]]
+ name = "wasi"
+-version = "0.11.0+wasi-snapshot-preview1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
+-
+-[[package]]
+-name = "wasi"
+-version = "0.14.2+wasi-0.2.4"
++version = "0.11.1+wasi-snapshot-preview1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9683f9a5a998d873c0d21fcbe3c083009670149a8fab228644b8bd36b2c48cb3"
+-dependencies = [
+- "wit-bindgen-rt",
+-]
++checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
+ 
+ [[package]]
+-name = "winapi"
+-version = "0.3.9"
++name = "wasip2"
++version = "1.0.4+wasi-0.2.12"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5c839a674fcd7a98952e593242ea400abe93992746761e38641405d28b00f419"
++checksum = "b67efb37e106e55ce722a510d6b5f9c17f083e5fc79afc2badeb12cc313d9487"
+ dependencies = [
+- "winapi-i686-pc-windows-gnu",
+- "winapi-x86_64-pc-windows-gnu",
++ "wit-bindgen",
+ ]
+ 
+ [[package]]
+-name = "winapi-i686-pc-windows-gnu"
+-version = "0.4.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
+-
+-[[package]]
+-name = "winapi-x86_64-pc-windows-gnu"
+-version = "0.4.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
+-
+-[[package]]
+-name = "windows-sys"
+-version = "0.52.0"
++name = "windows-link"
++version = "0.2.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
+-dependencies = [
+- "windows-targets",
+-]
++checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
+ 
+ [[package]]
+ name = "windows-sys"
+-version = "0.59.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1e38bc4d79ed67fd075bcc251a1c39b32a1776bbe92e5bef1f0bf1f8c531853b"
+-dependencies = [
+- "windows-targets",
+-]
+-
+-[[package]]
+-name = "windows-targets"
+-version = "0.52.6"
++version = "0.61.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9b724f72796e036ab90c1021d4780d4d3d648aca59e491e6b98e725b84e99973"
++checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
+ dependencies = [
+- "windows_aarch64_gnullvm",
+- "windows_aarch64_msvc",
+- "windows_i686_gnu",
+- "windows_i686_gnullvm",
+- "windows_i686_msvc",
+- "windows_x86_64_gnu",
+- "windows_x86_64_gnullvm",
+- "windows_x86_64_msvc",
++ "windows-link",
+ ]
+ 
+ [[package]]
+-name = "windows_aarch64_gnullvm"
+-version = "0.52.6"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "32a4622180e7a0ec044bb555404c800bc9fd9ec262ec147edd5989ccd0c02cd3"
+-
+-[[package]]
+-name = "windows_aarch64_msvc"
+-version = "0.52.6"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "09ec2a7bb152e2252b53fa7803150007879548bc709c039df7627cabbd05d469"
+-
+-[[package]]
+-name = "windows_i686_gnu"
+-version = "0.52.6"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "8e9b5ad5ab802e97eb8e295ac6720e509ee4c243f69d781394014ebfe8bbfa0b"
+-
+-[[package]]
+-name = "windows_i686_gnullvm"
+-version = "0.52.6"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "0eee52d38c090b3caa76c563b86c3a4bd71ef1a819287c19d586d7334ae8ed66"
+-
+-[[package]]
+-name = "windows_i686_msvc"
+-version = "0.52.6"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "240948bc05c5e7c6dabba28bf89d89ffce3e303022809e73deaefe4f6ec56c66"
+-
+-[[package]]
+-name = "windows_x86_64_gnu"
+-version = "0.52.6"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "147a5c80aabfbf0c7d901cb5895d1de30ef2907eb21fbbab29ca94c5b08b1a78"
+-
+-[[package]]
+-name = "windows_x86_64_gnullvm"
+-version = "0.52.6"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "24d5b23dc417412679681396f2b49f3de8c1473deb516bd34410872eff51ed0d"
+-
+-[[package]]
+-name = "windows_x86_64_msvc"
+-version = "0.52.6"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+-
+-[[package]]
+-name = "wit-bindgen-rt"
+-version = "0.39.0"
++name = "wit-bindgen"
++version = "0.57.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6f42320e61fe2cfd34354ecb597f86f413484a798ba44a8ca1165c58d42da6c1"
+-dependencies = [
+- "bitflags",
+-]
++checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
+ 
+ [[package]]
+ name = "zerocopy"
+-version = "0.8.25"
++version = "0.8.55"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "a1702d9583232ddb9174e01bb7c15a2ab8fb1bc6f227aa1233858c351a3ba0cb"
++checksum = "b5a105cd7b140f6eeec8acff2ea38135d3cab283ada58540f629fe51e46696eb"
+ dependencies = [
+  "zerocopy-derive",
+ ]
+ 
+ [[package]]
+ name = "zerocopy-derive"
+-version = "0.8.25"
++version = "0.8.55"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "28a6e20d751156648aa063f3800b706ee209a32c0b4d9f24be3d980b01be55ef"
++checksum = "0fe976fb70c78cd64cccfe3a6fc142244e8a77b70959b30faf9d0ac37ee228eb"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
++
++[[package]]
++name = "zmij"
++version = "1.0.23"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+diff -ruN a/Cargo.toml.orig b/Cargo.toml.orig
+--- a/Cargo.toml.orig	2006-07-24 03:21:28.000000000 +0200
++++ b/Cargo.toml.orig	1970-01-01 01:00:00.000000000 +0100
+@@ -1,85 +0,0 @@
+-[package]
+-name = "scuffle-rtmp"
+-version = "0.2.3"
+-edition = "2024"
+-description = "A pure Rust RTMP server"
+-repository = "https://github.com/scufflecloud/scuffle"
+-authors = ["Scuffle <opensource@scuffle.cloud>"]
+-readme = "README.md"
+-documentation = "https://docs.rs/scuffle-rtmp"
+-license = "MIT OR Apache-2.0"
+-keywords = ["rtmp", "server", "streaming"]
+-
+-[lints.rust]
+-unexpected_cfgs = { level = "warn", check-cfg = [
+-  'cfg(coverage_nightly)',
+-  'cfg(valgrind)',
+-] }
+-
+-[features]
+-## Enables changelog and documentation of feature flags
+-docs = ["dep:scuffle-changelog", "dep:document-features"]
+-
+-[[example]]
+-name = "scuffle-rtmp-basic"
+-path = "examples/basic.rs"
+-
+-[dependencies]
+-byteorder = "1.5"
+-bytes = "1.5"
+-serde = "1"
+-serde_derive = "1"
+-thiserror = "2.0"
+-tokio = { features = ["io-util", "sync"], version = "1.36" }
+-tracing = "0.1"
+-
+-hmac = "0.12"
+-rand = "0.9"
+-sha2 = "0.10"
+-
+-bitmask-enum = "2.2.5"
+-num-derive = "0.4"
+-num-traits = "0.2"
+-
+-document-features = { optional = true, version = "0.2" }
+-nutype-enum = { path = "../nutype_enum", version = "0.1.4" }
+-scuffle-amf0 = { features = ["serde"], path = "../amf0", version = "0.2.1" }
+-scuffle-bytes-util = { features = ["serde"], path = "../bytes-util", version = "0.1.3" }
+-scuffle-changelog = { optional = true, path = "../changelog", version = "0.1.0" }
+-scuffle-context = { path = "../context", version = "0.1.3" }
+-scuffle-future-ext = { path = "../future-ext", version = "0.1.3" }
+-scuffle-workspace-hack.workspace = true
+-
+-[dev-dependencies]
+-serde_json = "1.0"
+-tokio = { features = ["full"], version = "1.44.1" }
+-
+-# For examples:
+-scuffle-flv = { path = "../flv" }
+-tracing = "0.1.41"
+-tracing-subscriber = "0.3.19"
+-
+-[package.metadata.docs.rs]
+-all-features = true
+-rustdoc-args = [
+-  "--cfg",
+-  "docsrs",
+-  "--sort-modules-by-appearance",
+-  "--generate-link-to-definition",
+-]
+-
+-[package.metadata.xtask.powerset]
+-additive-features = ["docs"]
+-
+-[package.metadata.cargo-sync-rdme.rustdoc.mappings]
+-changelog = "./CHANGELOG.md"
+-
+-[package.metadata.cargo-sync-rdme.badge]
+-style = "flat-square"
+-
+-[package.metadata.cargo-sync-rdme.badge.badges]
+-license = true
+-docs-rs = true
+-crates-io = true
+-github-actions = { workflows = "ci.yaml" }
+-codecov = true
+diff -ruN a/LOCAL_CHANGES.md b/LOCAL_CHANGES.md
+--- a/LOCAL_CHANGES.md	1970-01-01 01:00:00.000000000 +0100
++++ b/LOCAL_CHANGES.md	2026-08-07 10:15:16.304073999 +0200
+@@ -0,0 +1,29 @@
++# Local changes
++
++This is `scuffle-rtmp` 0.2.3 from crates.io, licensed under MIT or
++Apache-2.0. It is kept locally so the GStreamer listener can configure network
++timeouts that are hardcoded upstream.
++
++The local patch adds `ServerSessionTimeouts` and
++`ServerSession::with_timeouts`. The defaults on that type retain upstream's
++two-second handshake-read timeout, 2.5-second session-read timeout, and
++two-second write timeout. Supplying `None` disables an individual timeout.
++
++The chunk reader also retains the preceding timestamp delta per chunk stream.
++When a type-3 chunk starts a new message it advances the timestamp by that
++delta, while continuation chunks retain the current message timestamp. RTMP
++timestamp arithmetic wraps at 32 bits.
++
++The server advertises FFmpeg-compatible 2,500,000-byte acknowledgement and
++peer-bandwidth windows. Acknowledgements report the sequence number after the
++boundary-crossing read, and a zero window from a peer is rejected.
++
++Command replies carry an explicit RTMP message stream id so NetStream
++`onStatus` events land on the publishing stream. Clients such as GStreamer's
++`rtmp2sink` wait for `NetStream.Publish.Start` on that stream and ignore the
++same status when it arrives on NetConnection stream 0.
++
++`deleteStream` also tolerates a non-numeric stream argument. Upstream expects
++the Adobe stream id, but `rtmp2sink` sends the stream name; the reader treats
++that as unrecognized and the session resolves it against the streams this
++connection publishes instead of dropping a healthy publisher.
+diff -ruN a/src/chunk/reader.rs b/src/chunk/reader.rs
+--- a/src/chunk/reader.rs	2006-07-24 03:21:28.000000000 +0200
++++ b/src/chunk/reader.rs	2026-08-05 19:47:30.066201787 +0200
+@@ -29,6 +29,13 @@
+     /// chunk header)
+     previous_chunk_headers: HashMap<u32, ChunkMessageHeader>,
+ 
++    /// The last timestamp delta carried by each chunk stream.
++    ///
++    /// A type-3 header carries no fields. When it starts a new message, its
++    /// timestamp advances by the preceding message's delta; when it continues
++    /// a partial message, its timestamp stays unchanged.
++    previous_timestamp_deltas: HashMap<u32, u32>,
++
+     /// Technically according to the spec, we can have multiple message streams
+     /// in a single chunk stream. Because of this the key of this map is a tuple
+     /// (chunk stream id, message stream id).
+@@ -43,6 +50,7 @@
+     fn default() -> Self {
+         Self {
+             previous_chunk_headers: HashMap::with_capacity(MAX_PREVIOUS_CHUNK_HEADERS),
++            previous_timestamp_deltas: HashMap::with_capacity(MAX_PREVIOUS_CHUNK_HEADERS),
+             partial_chunks: HashMap::with_capacity(MAX_PARTIAL_CHUNK_COUNT),
+             max_chunk_size: INIT_CHUNK_SIZE,
+         }
+@@ -166,6 +174,27 @@
+                 ));
+             }
+ 
++            // Preserve the delta before replacing the preceding absolute
++            // timestamp. Type-3 messages reuse it without encoding it again.
++            match header.format {
++                ChunkType::Type0 => {
++                    self.previous_timestamp_deltas
++                        .insert(header.chunk_stream_id, 0);
++                }
++                ChunkType::Type1 | ChunkType::Type2 => {
++                    let previous_timestamp = self
++                        .previous_chunk_headers
++                        .get(&header.chunk_stream_id)
++                        .expect("compressed headers require a preceding header")
++                        .timestamp;
++                    self.previous_timestamp_deltas.insert(
++                        header.chunk_stream_id,
++                        message_header.timestamp.wrapping_sub(previous_timestamp),
++                    );
++                }
++                ChunkType::Type3 => {}
++            }
++
+             // We insert the chunk header into our map.
+             self.previous_chunk_headers
+                 .insert(header.chunk_stream_id, message_header.clone());
+@@ -408,17 +437,9 @@
+                             ChunkReadError::MissingPreviousChunkHeader(header.chunk_stream_id),
+                         ))?;
+ 
+-                // We calculate the timestamp by adding the delta timestamp to the previous
+-                // timestamp. We need to make sure this does not overflow.
+-                let timestamp = previous_header.timestamp.checked_add(timestamp_delta).unwrap_or_else(|| {
+-                    tracing::warn!(
+-						"Timestamp overflow detected. Previous timestamp: {}, delta timestamp: {}, using previous timestamp.",
+-						previous_header.timestamp,
+-						timestamp_delta
+-					);
+-
+-                    previous_header.timestamp
+-                });
++                // RTMP timestamps are a wrapping 32-bit clock, so the delta
++                // crosses the rollover point with modular arithmetic.
++                let timestamp = previous_header.timestamp.wrapping_add(timestamp_delta);
+ 
+                 Ok(ChunkMessageHeader {
+                     timestamp,
+@@ -465,7 +486,8 @@
+ 
+                 // We calculate the timestamp by adding the delta timestamp to the previous
+                 // timestamp.
+-                let timestamp = previous_header.timestamp + timestamp_delta;
++                // RTMP timestamps are a wrapping 32-bit clock.
++                let timestamp = previous_header.timestamp.wrapping_add(timestamp_delta);
+ 
+                 Ok(ChunkMessageHeader {
+                     timestamp,
+@@ -480,7 +502,7 @@
+                 // We get the previous chunk header.
+                 // If the previous chunk header is not found we return an error. (this is a real
+                 // error)
+-                let previous_header = self
++                let mut previous_header = self
+                     .previous_chunk_headers
+                     .get(&header.chunk_stream_id)
+                     .ok_or(crate::error::RtmpError::ChunkRead(
+@@ -502,6 +524,20 @@
+                         .map_err(|e| e.map(crate::error::RtmpError::Io))?;
+                 }
+ 
++                let key = (header.chunk_stream_id, previous_header.msg_stream_id);
++                if !self.partial_chunks.contains_key(&key) {
++                    // This is the first chunk of a new message, not a
++                    // continuation. Type 3 reuses the preceding message's
++                    // timestamp delta as well as its length and type.
++                    let timestamp_delta = self
++                        .previous_timestamp_deltas
++                        .get(&header.chunk_stream_id)
++                        .copied()
++                        .unwrap_or_default();
++                    previous_header.timestamp =
++                        previous_header.timestamp.wrapping_add(timestamp_delta);
++                }
++
+                 Ok(previous_header)
+             }
+         }
+@@ -588,6 +624,99 @@
+     }
+ 
+     #[test]
++    fn type_three_new_message_advances_by_previous_delta() {
++        let mut wire = BytesMut::new();
++        // Type 0: absolute timestamp 100, three-byte audio message.
++        wire.extend_from_slice(&[
++            0x04, 0x00, 0x00, 0x64, 0x00, 0x00, 0x03, 0x08, 0x01, 0x00, 0x00, 0x00,
++        ]);
++        wire.extend_from_slice(b"aaa");
++        // Type 1: delta 21, same stream with a new three-byte payload.
++        wire.extend_from_slice(&[0x44, 0x00, 0x00, 0x15, 0x00, 0x00, 0x03, 0x08]);
++        wire.extend_from_slice(b"bbb");
++        // Type 3: a complete new message reusing the delta, length, and type.
++        wire.extend_from_slice(&[0xc4]);
++        wire.extend_from_slice(b"ccc");
++        let mut reader = ChunkReader::default();
++
++        let first = reader
++            .read_chunk(&mut wire)
++            .expect("first chunk is valid")
++            .expect("first message is complete");
++        let second = reader
++            .read_chunk(&mut wire)
++            .expect("second chunk is valid")
++            .expect("second message is complete");
++        let third = reader
++            .read_chunk(&mut wire)
++            .expect("third chunk is valid")
++            .expect("third message is complete");
++
++        assert_eq!(first.message_header.timestamp, 100);
++        assert_eq!(second.message_header.timestamp, 121);
++        assert_eq!(third.message_header.timestamp, 142);
++        assert_eq!(third.payload.as_ref(), b"ccc");
++        assert!(wire.is_empty());
++    }
++
++    #[test]
++    fn type_three_continuation_keeps_current_message_timestamp() {
++        let mut wire = BytesMut::new();
++        // The 130-byte message exceeds RTMP's initial 128-byte chunk size.
++        wire.extend_from_slice(&[
++            0x04, 0x00, 0x00, 0x64, 0x00, 0x00, 0x82, 0x08, 0x01, 0x00, 0x00, 0x00,
++        ]);
++        wire.extend_from_slice(&[b'a'; 128]);
++        wire.extend_from_slice(&[0xc4, b'b', b'b']);
++        let mut reader = ChunkReader::default();
++
++        let message = reader
++            .read_chunk(&mut wire)
++            .expect("continuation chunk is valid")
++            .expect("partial chunks form one complete message");
++
++        assert_eq!(message.message_header.timestamp, 100);
++        assert_eq!(message.payload.len(), 130);
++        assert!(wire.is_empty());
++    }
++
++    #[test]
++    fn compressed_message_timestamps_wrap_at_32_bits() {
++        let mut wire = BytesMut::new();
++        // Type 0: extended absolute timestamp just below the rollover point.
++        wire.extend_from_slice(&[
++            0x04, 0xff, 0xff, 0xff, 0x00, 0x00, 0x03, 0x08, 0x01, 0x00, 0x00, 0x00, 0xff, 0xff,
++            0xff, 0xf0,
++        ]);
++        wire.extend_from_slice(b"aaa");
++        // Type 1: delta 32 wraps the absolute timestamp to 16.
++        wire.extend_from_slice(&[0x44, 0x00, 0x00, 0x20, 0x00, 0x00, 0x03, 0x08]);
++        wire.extend_from_slice(b"bbb");
++        // Type 3: reuses delta 32 and advances to 48.
++        wire.extend_from_slice(&[0xc4]);
++        wire.extend_from_slice(b"ccc");
++        let mut reader = ChunkReader::default();
++
++        let first = reader
++            .read_chunk(&mut wire)
++            .expect("first chunk is valid")
++            .expect("first message is complete");
++        let second = reader
++            .read_chunk(&mut wire)
++            .expect("second chunk is valid")
++            .expect("second message is complete");
++        let third = reader
++            .read_chunk(&mut wire)
++            .expect("third chunk is valid")
++            .expect("third message is complete");
++
++        assert_eq!(first.message_header.timestamp, 0xffff_fff0);
++        assert_eq!(second.message_header.timestamp, 0x10);
++        assert_eq!(third.message_header.timestamp, 0x30);
++        assert!(wire.is_empty());
++    }
++
++    #[test]
+     fn test_incomplete_header() {
+         let mut buf = BytesMut::new();
+         buf.extend_from_slice(&[0b00_000000]);
+diff -ruN a/src/command_messages/netstream/reader.rs b/src/command_messages/netstream/reader.rs
+--- a/src/command_messages/netstream/reader.rs	2006-07-24 03:21:28.000000000 +0200
++++ b/src/command_messages/netstream/reader.rs	2026-08-05 19:47:30.075627907 +0200
+@@ -1,6 +1,7 @@
+ //! Reading [`NetStreamCommand`].
+ 
+ use bytes::Bytes;
++use scuffle_amf0::Amf0Value;
+ use scuffle_amf0::decoder::Amf0Decoder;
+ use scuffle_bytes_util::zero_copy::BytesBuf;
+ 
+@@ -31,8 +32,17 @@
+                 // skip command object
+                 decoder.decode_null()?;
+ 
+-                let stream_id = decoder.decode_number()?;
+-                Ok(Some(Self::DeleteStream { stream_id }))
++                // Adobe types this argument as the numeric stream id, but
++                // GStreamer's rtmp2sink sends the stream *name* instead. Report
++                // the non-conforming form as unrecognized so the session can
++                // resolve it against the streams this connection publishes,
++                // rather than failing a connection whose media was fine.
++                match decoder.decode_all()?.first() {
++                    Some(Amf0Value::Number(stream_id)) => {
++                        Ok(Some(Self::DeleteStream { stream_id: *stream_id }))
++                    }
++                    _ => Ok(None),
++                }
+             }
+             "closeStream" => Ok(Some(Self::CloseStream)),
+             "receiveAudio" => {
+diff -ruN a/src/command_messages/writer.rs b/src/command_messages/writer.rs
+--- a/src/command_messages/writer.rs	2006-07-24 03:21:28.000000000 +0200
++++ b/src/command_messages/writer.rs	2026-08-05 19:47:30.074356736 +0200
+@@ -35,17 +35,39 @@
+ }
+ 
+ impl Command<'_> {
+-    fn write_amf0_chunk(io: &mut impl io::Write, writer: &ChunkWriter, payload: Bytes) -> io::Result<()> {
++    fn write_amf0_chunk(
++        io: &mut impl io::Write,
++        writer: &ChunkWriter,
++        payload: Bytes,
++        message_stream_id: u32,
++    ) -> io::Result<()> {
+         writer.write_chunk(
+             io,
+-            Chunk::new(CHUNK_STREAM_ID_COMMAND, 0, MessageType::CommandAMF0, 0, payload),
++            Chunk::new(
++                CHUNK_STREAM_ID_COMMAND,
++                0,
++                MessageType::CommandAMF0,
++                message_stream_id,
++                payload,
++            ),
+         )
+     }
+ 
+     /// Writes a [`Command`] to the given writer.
+     ///
++    /// `message_stream_id` selects the RTMP message stream the command is sent
++    /// on. NetConnection replies belong on stream 0, but a NetStream `onStatus`
++    /// must be sent on the stream it describes: clients such as GStreamer's
++    /// `rtmp2sink` match the reply to their publishing stream by this id and
++    /// will wait forever for a `NetStream.Publish.Start` that arrives on 0.
++    ///
+     /// Skips unknown commands.
+-    pub fn write(self, io: &mut impl io::Write, writer: &ChunkWriter) -> Result<(), RtmpError> {
++    pub fn write(
++        self,
++        io: &mut impl io::Write,
++        writer: &ChunkWriter,
++        message_stream_id: u32,
++    ) -> Result<(), RtmpError> {
+         let mut buf = BytesMut::new();
+         let mut buf_writer = (&mut buf).writer();
+ 
+@@ -63,7 +85,7 @@
+             CommandType::Unknown { .. } => {}
+         }
+ 
+-        Self::write_amf0_chunk(io, writer, buf.freeze())?;
++        Self::write_amf0_chunk(io, writer, buf.freeze(), message_stream_id)?;
+ 
+         Ok(())
+     }
+@@ -104,7 +126,7 @@
+             command_type: CommandType::NetStream(NetStreamCommand::CloseStream),
+             transaction_id: 1.0,
+         }
+-        .write(&mut buf, &writer)
++        .write(&mut buf, &writer, 0)
+         .unwrap_err();
+ 
+         assert!(matches!(err, RtmpError::Command(CommandError::NoClientImplementation)));
+diff -ruN a/src/session/server/error.rs b/src/session/server/error.rs
+--- a/src/session/server/error.rs	2006-07-24 03:21:28.000000000 +0200
++++ b/src/session/server/error.rs	2026-08-05 19:47:30.076384202 +0200
+@@ -15,4 +15,7 @@
+     /// Invalid chunk size.
+     #[error("invalid chunk size: {0}")]
+     InvalidChunkSize(usize),
++    /// Invalid acknowledgement window size.
++    #[error("invalid acknowledgement window size: {0}")]
++    InvalidAcknowledgementWindowSize(u32),
+ }
+diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
+--- a/src/session/server/mod.rs	2006-07-24 03:21:28.000000000 +0200
++++ b/src/session/server/mod.rs	2026-08-05 19:47:30.077163622 +0200
+@@ -1,11 +1,12 @@
+ //! RTMP server session.
+ 
++use std::future::Future;
++use std::io;
+ use std::time::Duration;
+ 
+ use bytes::BytesMut;
+ use scuffle_bytes_util::{BytesCursorExt, StringCow};
+ use scuffle_context::ContextFutExt;
+-use scuffle_future_ext::FutureExt;
+ use tokio::io::{AsyncReadExt, AsyncWriteExt};
+ 
+ use crate::chunk::CHUNK_SIZE;
+@@ -38,6 +39,30 @@
+ // - https://github.com/FFmpeg/FFmpeg/blob/154c00514d889d27ae84a1001e00f9032fdc1c54/libavformat/rtmpproto.c#L2850
+ const DEFAULT_ACKNOWLEDGEMENT_WINDOW_SIZE: u32 = 2_500_000; // 2.5 MB
+ 
++/// Network operation timeouts for an RTMP server session.
++///
++/// A value of `None` disables that timeout. The defaults preserve the
++/// timeouts used by scuffle-rtmp 0.2.3 before they were configurable.
++#[derive(Clone, Copy, Debug)]
++pub struct ServerSessionTimeouts {
++    /// Maximum time allowed for each handshake read.
++    pub handshake_read: Option<Duration>,
++    /// Maximum time allowed for each established-session read.
++    pub session_read: Option<Duration>,
++    /// Maximum time allowed for each socket write.
++    pub write: Option<Duration>,
++}
++
++impl Default for ServerSessionTimeouts {
++    fn default() -> Self {
++        Self {
++            handshake_read: Some(Duration::from_secs(2)),
++            session_read: Some(Duration::from_millis(2500)),
++            write: Some(Duration::from_secs(2)),
++        }
++    }
++}
++
+ /// A RTMP server session that is used to communicate with a client.
+ ///
+ /// This provides a high-level API to drive a RTMP session.
+@@ -66,6 +91,8 @@
+     /// The number of bytes read from the stream. Value wraps when reaching u32::MAX.
+     /// This is used to know when to send acknoledgements.
+     sequence_number: u32,
++    /// Bytes received since the last acknowledgement.
++    bytes_since_acknowledgement: u32,
+     /// Buffer to read data into
+     read_buf: BytesMut,
+     /// Buffer to write data to
+@@ -81,6 +108,8 @@
+     chunk_writer: ChunkWriter,
+     /// Is Publishing
+     publishing_stream_ids: Vec<u32>,
++    /// Timeouts applied to network reads and writes.
++    timeouts: ServerSessionTimeouts,
+ }
+ 
+ impl<S, H> ServerSession<S, H> {
+@@ -95,12 +124,14 @@
+             handler,
+             acknowledgement_window_size: DEFAULT_ACKNOWLEDGEMENT_WINDOW_SIZE,
+             sequence_number: 0,
++            bytes_since_acknowledgement: 0,
+             skip_read: false,
+             chunk_reader: ChunkReader::default(),
+             chunk_writer: ChunkWriter::default(),
+             read_buf: BytesMut::new(),
+             write_buf: Vec::new(),
+             publishing_stream_ids: Vec::new(),
++            timeouts: ServerSessionTimeouts::default(),
+         }
+     }
+ 
+@@ -109,6 +140,12 @@
+         self.ctx = Some(ctx);
+         self
+     }
++
++    /// Configure network operation timeouts for this session.
++    pub fn with_timeouts(mut self, timeouts: ServerSessionTimeouts) -> Self {
++        self.timeouts = timeouts;
++        self
++    }
+ }
+ 
+ impl<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin, H: SessionHandler> ServerSession<S, H> {
+@@ -173,12 +210,11 @@
+ 
+         let mut bytes_read = 0;
+         while bytes_read < READ_SIZE {
+-            let n = self
+-                .io
+-                .read_buf(&mut self.read_buf)
+-                .with_timeout(Duration::from_secs(2))
+-                .await
+-                .map_err(ServerSessionError::Timeout)??;
++            let n = io_with_timeout(
++                self.timeouts.handshake_read,
++                self.io.read_buf(&mut self.read_buf),
++            )
++            .await?;
+             bytes_read += n;
+ 
+             self.sequence_number = self.sequence_number.wrapping_add(n.try_into().unwrap_or(u32::MAX));
+@@ -243,39 +279,17 @@
+         } else {
+             self.read_buf.reserve(CHUNK_SIZE);
+ 
+-            let n = self
+-                .io
+-                .read_buf(&mut self.read_buf)
+-                .with_timeout(Duration::from_millis(2500))
+-                .await
+-                .map_err(ServerSessionError::Timeout)?? as u32;
++            let n = io_with_timeout(
++                self.timeouts.session_read,
++                self.io.read_buf(&mut self.read_buf),
++            )
++            .await? as u32;
+ 
+             if n == 0 {
+                 return Ok(false);
+             }
+ 
+-            // We have to send an acknowledgement every `self.acknowledgement_window_size` bytes.
+-            // We also have to keep track of the total number of bytes read from the stream in `self.sequence_number`
+-            // because it has to be sent as part of an acknowledgement message.
+-
+-            // This condition checks if we have read enough bytes to send the next acknowledgement.
+-            // - `self.sequence_number % self.acknowledgement_window_size` calculates the number of bytes read since
+-            //   the last acknowledgement.
+-            // - `n` is the number of bytes read in this read operation.
+-            // If the sum of the two is greater than or equal to the window size, we know that
+-            // we just exceeded the window size and we need to send an acknowledgement again.
+-            if (self.sequence_number % self.acknowledgement_window_size) + n >= self.acknowledgement_window_size {
+-                tracing::debug!(sequence_number = %self.sequence_number, "sending acknowledgement");
+-
+-                // Send acknowledgement
+-                ProtocolControlMessageAcknowledgement {
+-                    sequence_number: self.sequence_number,
+-                }
+-                .write(&mut self.write_buf, &self.chunk_writer)?;
+-            }
+-
+-            // Wrap back to 0 when we reach u32::MAX
+-            self.sequence_number = self.sequence_number.wrapping_add(n);
++            self.record_bytes_read(n)?;
+         }
+ 
+         self.process_chunks().await?;
+@@ -378,7 +392,17 @@
+                     .await?;
+             }
+             CommandType::Unknown(unknown_command) => {
+-                self.handler.on_unknown_command(stream_id, unknown_command).await?;
++                // A `deleteStream` naming its stream rather than numbering it
++                // arrives here (see the reader). It is still an unpublish, so
++                // resolve it against what this connection publishes.
++                if unknown_command.command_name.as_str() == "deleteStream" {
++                    if let Some(&publishing) = self.publishing_stream_ids.first() {
++                        self.on_command_delete_stream(stream_id, command.transaction_id, publishing as f64)
++                            .await?;
++                    }
++                } else {
++                    self.handler.on_unknown_command(stream_id, unknown_command).await?;
++                }
+             }
+             // ignore everything else
+             _ => {}
+@@ -403,10 +427,38 @@
+     /// from the client.
+     fn on_acknowledgement_window_size(&mut self, acknowledgement_window_size: u32) -> Result<(), crate::error::RtmpError> {
+         tracing::debug!(acknowledgement_window_size = %acknowledgement_window_size, "received new acknowledgement window size");
++        if acknowledgement_window_size == 0 {
++            return Err(ServerSessionError::InvalidAcknowledgementWindowSize(
++                acknowledgement_window_size,
++            )
++            .into());
++        }
+         self.acknowledgement_window_size = acknowledgement_window_size;
+         Ok(())
+     }
+ 
++    /// Record newly received bytes and emit an acknowledgement after crossing
++    /// the peer's configured window. The acknowledgement sequence includes the
++    /// bytes from the read that crossed the boundary.
++    fn record_bytes_read(&mut self, bytes_read: u32) -> Result<(), crate::error::RtmpError> {
++        self.sequence_number = self.sequence_number.wrapping_add(bytes_read);
++        let unacknowledged = u64::from(self.bytes_since_acknowledgement) + u64::from(bytes_read);
++        let window = u64::from(self.acknowledgement_window_size);
++
++        if unacknowledged >= window {
++            tracing::debug!(sequence_number = %self.sequence_number, "sending acknowledgement");
++            ProtocolControlMessageAcknowledgement {
++                sequence_number: self.sequence_number,
++            }
++            .write(&mut self.write_buf, &self.chunk_writer)?;
++            self.bytes_since_acknowledgement = (unacknowledged % window) as u32;
++        } else {
++            self.bytes_since_acknowledgement = unacknowledged as u32;
++        }
++
++        Ok(())
++    }
++
+     /// on_command_connect is called when we receive a amf0 command message with
+     /// the name "connect" We then handle the connect message
+     /// This is called when the client first connects to the server
+@@ -417,12 +469,12 @@
+         connect: NetConnectionCommandConnect<'_>,
+     ) -> Result<(), crate::error::RtmpError> {
+         ProtocolControlMessageWindowAcknowledgementSize {
+-            acknowledgement_window_size: CHUNK_SIZE as u32,
++            acknowledgement_window_size: DEFAULT_ACKNOWLEDGEMENT_WINDOW_SIZE,
+         }
+         .write(&mut self.write_buf, &self.chunk_writer)?;
+ 
+         ProtocolControlMessageSetPeerBandwidth {
+-            acknowledgement_window_size: CHUNK_SIZE as u32,
++            acknowledgement_window_size: DEFAULT_ACKNOWLEDGEMENT_WINDOW_SIZE,
+             limit_type: ProtocolControlMessageSetPeerBandwidthLimitType::Dynamic,
+         }
+         .write(&mut self.write_buf, &self.chunk_writer)?;
+@@ -436,7 +488,7 @@
+             command_type: CommandType::NetConnection(result),
+             transaction_id,
+         }
+-        .write(&mut self.write_buf, &self.chunk_writer)?;
++        .write(&mut self.write_buf, &self.chunk_writer, 0)?;
+ 
+         Ok(())
+     }
+@@ -455,7 +507,7 @@
+             command_type: CommandType::NetConnection(NetConnectionCommand::CreateStreamResult { stream_id: 1.0 }),
+             transaction_id,
+         }
+-        .write(&mut self.write_buf, &self.chunk_writer)?;
++        .write(&mut self.write_buf, &self.chunk_writer, 0)?;
+ 
+         Ok(())
+     }
+@@ -486,7 +538,8 @@
+             }),
+             transaction_id,
+         }
+-        .write(&mut self.write_buf, &self.chunk_writer)?;
++        // A NetStream status belongs on the stream it describes, not on 0.
++        .write(&mut self.write_buf, &self.chunk_writer, stream_id)?;
+ 
+         Ok(())
+     }
+@@ -521,21 +574,112 @@
+             }),
+             transaction_id,
+         }
+-        .write(&mut self.write_buf, &self.chunk_writer)?;
++        // A NetStream status belongs on the stream it describes, not on 0.
++        .write(&mut self.write_buf, &self.chunk_writer, stream_id)?;
+ 
+         Ok(())
+     }
+ 
+     async fn flush(&mut self) -> Result<(), crate::error::RtmpError> {
+         if !self.write_buf.is_empty() {
+-            self.io
+-                .write_all(self.write_buf.as_ref())
+-                .with_timeout(Duration::from_secs(2))
+-                .await
+-                .map_err(ServerSessionError::Timeout)??;
++            io_with_timeout(
++                self.timeouts.write,
++                self.io.write_all(self.write_buf.as_ref()),
++            )
++            .await?;
+             self.write_buf.clear();
+         }
+ 
+         Ok(())
+     }
+ }
++
++#[cfg(test)]
++#[cfg_attr(all(test, coverage_nightly), coverage(off))]
++mod tests {
++    use std::collections::HashMap;
++
++    use bytes::BytesMut;
++
++    use super::*;
++    use crate::chunk::reader::ChunkReader;
++    use crate::messages::MessageType;
++
++    struct Handler;
++
++    impl SessionHandler for Handler {
++        async fn on_publish(&mut self, _stream_id: u32, _app_name: &str, _stream_name: &str) -> Result<(), ServerSessionError> {
++            Ok(())
++        }
++
++        async fn on_unpublish(&mut self, _stream_id: u32) -> Result<(), ServerSessionError> {
++            Ok(())
++        }
++
++        async fn on_data(&mut self, _stream_id: u32, _data: SessionData) -> Result<(), ServerSessionError> {
++            Ok(())
++        }
++    }
++
++    fn session() -> ServerSession<tokio::io::DuplexStream, Handler> {
++        let (server, _client) = tokio::io::duplex(64);
++        ServerSession::new(server, Handler)
++    }
++
++    #[tokio::test]
++    async fn connect_advertises_ffmpeg_acknowledgement_windows() {
++        let mut session = session();
++        session
++            .on_command_connect(0, 1.0, NetConnectionCommandConnect { app: "live".into(), caps_ex: None, others: HashMap::new() })
++            .await
++            .expect("connect response");
++
++        let mut wire = BytesMut::from(session.write_buf.as_slice());
++        let mut reader = ChunkReader::default();
++        let window = reader.read_chunk(&mut wire).expect("read window chunk").expect("complete window chunk");
++        assert_eq!(window.message_header.msg_type_id, MessageType::WindowAcknowledgementSize);
++        assert_eq!(window.payload.as_ref(), DEFAULT_ACKNOWLEDGEMENT_WINDOW_SIZE.to_be_bytes());
++
++        let bandwidth = reader.read_chunk(&mut wire).expect("read bandwidth chunk").expect("complete bandwidth chunk");
++        assert_eq!(bandwidth.message_header.msg_type_id, MessageType::SetPeerBandwidth);
++        assert_eq!(bandwidth.payload.as_ref(), [DEFAULT_ACKNOWLEDGEMENT_WINDOW_SIZE.to_be_bytes().as_slice(), &[2]].concat());
++    }
++
++    #[test]
++    fn acknowledgement_includes_boundary_crossing_read() {
++        let mut session = session();
++        session.acknowledgement_window_size = 10;
++        session.sequence_number = 7;
++        session.bytes_since_acknowledgement = 7;
++
++        session.record_bytes_read(5).expect("record bytes");
++
++        assert_eq!(session.sequence_number, 12);
++        assert_eq!(session.bytes_since_acknowledgement, 2);
++        let mut wire = BytesMut::from(session.write_buf.as_slice());
++        let acknowledgement =
++            ChunkReader::default().read_chunk(&mut wire).expect("read acknowledgement").expect("complete acknowledgement");
++        assert_eq!(acknowledgement.message_header.msg_type_id, MessageType::Acknowledgement);
++        assert_eq!(acknowledgement.payload.as_ref(), 12_u32.to_be_bytes());
++    }
++
++    #[test]
++    fn zero_acknowledgement_window_is_rejected() {
++        let mut session = session();
++        let error = session.on_acknowledgement_window_size(0).expect_err("zero window must fail");
++        assert!(matches!(error, crate::error::RtmpError::Session(ServerSessionError::InvalidAcknowledgementWindowSize(0))));
++    }
++}
++
++async fn io_with_timeout<T>(
++    timeout: Option<Duration>,
++    future: impl Future<Output = io::Result<T>>,
++) -> Result<T, crate::error::RtmpError> {
++    match timeout {
++        Some(timeout) => tokio::time::timeout(timeout, future)
++            .await
++            .map_err(ServerSessionError::Timeout)?,
++        None => future.await,
++    }
++    .map_err(Into::into)
++}

@@ -1,0 +1,53 @@
+[package]
+name = "gst-transcribe-cpp"
+version = "0.1.0"
+authors = ["Elliott Linder <elliott@linder.dev>"]
+edition = "2024"
+# earshot needs 1.87.
+rust-version = "1.87"
+license = "MPL-2.0"
+repository = "https://github.com/darfink/gst-transcribe-cpp"
+description = "GStreamer speech-to-text plugin using transcribe.cpp"
+
+[dependencies]
+gst = { package = "gstreamer", version = "0.25", features = ["v1_20"] }
+gst-audio = { package = "gstreamer-audio", version = "0.25", features = ["v1_16"] }
+transcribe-cpp = { version = "0.1.3", default-features = false }
+byte-slice-cast = "1.2"
+earshot = "1.2"
+log = "0.4"
+
+[dev-dependencies]
+gst-check = { package = "gstreamer-check", version = "0.25" }
+
+[lib]
+name = "gsttranscribecpp"
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[features]
+default = ["metal"]
+static = []
+capi = []
+doc = ["gst/v1_18"]
+
+# Re-exported transcribe-cpp-sys backend features.
+metal = ["transcribe-cpp/metal"]
+cuda = ["transcribe-cpp/cuda"]
+vulkan = ["transcribe-cpp/vulkan"]
+openmp = ["transcribe-cpp/openmp"]
+dynamic-backends = ["transcribe-cpp/dynamic-backends"]
+
+[package.metadata.capi]
+min_version = "0.9.21"
+
+[package.metadata.capi.header]
+enabled = false
+
+[package.metadata.capi.library]
+install_subdir = "gstreamer-1.0"
+versioning = false
+import_library = false
+
+[package.metadata.capi.pkg_config]
+requires_private = "gstreamer-1.0, gstreamer-base-1.0, gstreamer-audio-1.0, gobject-2.0, glib-2.0, gmodule-2.0"

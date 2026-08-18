@@ -1,0 +1,24 @@
+[package]
+name = "gst-scuffle-rtmp"
+version = "0.1.0"
+edition = "2024"
+description = "GStreamer source plugin for accepting an RTMP publisher with Scuffle"
+license = "MIT OR Apache-2.0"
+publish = false
+repository = "https://github.com/darfink/gst-scuffle-rtmp"
+
+[lib]
+name = "gstscufflertmp"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+bytes = "1.12"
+flume = "0.11"
+gst = { package = "gstreamer", version = "0.25.3", features = ["v1_28"] }
+gst-base = { package = "gstreamer-base", version = "0.25.3", features = ["v1_28"] }
+scuffle-rtmp = { path = "vendor/scuffle-rtmp" }
+tokio = { version = "1.53", features = ["macros", "net", "rt", "sync", "time"] }
+tokio-util = "0.7"
+
+[build-dependencies]
+gst-plugin-version-helper = "0.8.4"

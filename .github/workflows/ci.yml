@@ -1,0 +1,154 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  caption-plugins:
+    name: caption plugins (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GStreamer (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-tools
+
+      - name: Install GStreamer (macOS)
+        if: runner.os == 'macOS'
+        run: brew install gstreamer
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo clippy --package gst-flvsubinject --package gst-textrollup --all-targets --all-features -- -D warnings
+      - run: cargo build --release -p gst-flvsubinject -p gst-textrollup
+      - run: cargo test -p gst-flvsubinject -p gst-textrollup
+
+      - name: Verify plugins register
+        env:
+          GST_PLUGIN_PATH: ${{ github.workspace }}/target/release
+        run: |
+          gst-inspect-1.0 flvsubinject
+          gst-inspect-1.0 textrollup
+
+  transcribe:
+    name: transcribe (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-cpu, os: ubuntu-26.04, flags: "--no-default-features" }
+          - { name: macos-metal, os: macos-14, flags: "" }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build build-essential pkg-config \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-tools
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install cmake gstreamer
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: transcribe-${{ matrix.name }}
+      - run: cargo clippy -p gst-transcribe-cpp --all-targets ${{ matrix.flags }} -- -D warnings
+      - run: cargo build -p gst-transcribe-cpp --release --locked ${{ matrix.flags }}
+      - run: cargo test -p gst-transcribe-cpp --locked ${{ matrix.flags }}
+      - name: Verify plugin registers
+        env:
+          GST_PLUGIN_PATH: ${{ github.workspace }}/target/release
+        run: gst-inspect-1.0 transcribecpptranscriber
+
+  rtmp:
+    name: RTMP (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-26.04, macos-14]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GStreamer (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad gstreamer1.0-tools
+      - name: Install GStreamer (macOS)
+        if: runner.os == 'macOS'
+        run: brew install gstreamer
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy -p gst-scuffle-rtmp --all-targets -- -D warnings
+      - run: cargo build -p gst-scuffle-rtmp --release --locked
+      - run: cargo test -p gst-scuffle-rtmp --locked
+      - name: Verify plugin registers
+        env:
+          GST_PLUGIN_PATH: ${{ github.workspace }}/target/release
+        run: gst-inspect-1.0 scufflertmplistensrc
+
+  rtmp-integration:
+    name: RTMP integration
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad gstreamer1.0-tools ffmpeg
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build -p gst-scuffle-rtmp --locked
+      - run: ./scuffle-rtmp/tests/integration.sh
+
+  vendor:
+    name: vendored RTMP dependency is current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scuffle-rtmp/vendor/verify.sh
+
+  docker:
+    name: Docker (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { name: textrollup, directory: textrollup }
+          - { name: transcribe-cpp, directory: transcribe-cpp }
+          - { name: scuffle-rtmp, directory: scuffle-rtmp }
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t gst-${{ matrix.name }} ./${{ matrix.directory }}
