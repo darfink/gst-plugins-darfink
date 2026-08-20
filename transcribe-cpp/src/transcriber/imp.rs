@@ -74,12 +74,8 @@ const DEFAULT_CHUNK_DURATION_MS: u32 = 4_000;
 const DEFAULT_LIVE_EDGE_OFFSET_MS: u32 = 1_000;
 const DEFAULT_QUEUE_SIZE: u32 = 32;
 const DEFAULT_DISCONT_THRESHOLD_MS: u32 = 500;
-/// How long the VAD gate may withhold audio before giving up and opening.
-///
-/// This is the pipeline's stall bound, so it is deliberately generous enough
-/// to cover a speaker who joins late and short enough that a source which is
-/// silent by nature still starts transcribing promptly.
-const DEFAULT_VAD_MAX_WAIT_MS: u32 = 30_000;
+/// Whether to hold audio back until someone speaks. See [`vad`].
+const DEFAULT_VAD: bool = true;
 /// Priming silence fed ahead of the first speech, per NVIDIA's guidance for
 /// the Nemotron/Parakeet streaming checkpoints.
 const DEFAULT_WARMUP_PAD_MS: u32 = 80;
@@ -103,9 +99,11 @@ struct Settings {
     queue_size: u32,
     overrun: Overrun,
     discont_threshold_ms: u32,
-    /// Withhold audio until speech is detected, so a streaming model never
-    /// opens its stream on silence. Zero disables the gate.
-    vad_max_wait_ms: u32,
+    /// Discard audio until speech is detected, so a streaming model never
+    /// opens its stream on silence.
+    vad: bool,
+    /// Score a frame must reach to count as voice.
+    vad_threshold: f32,
     /// Zero-filled priming chunk fed before the first speech. Zero disables it.
     warmup_pad_ms: u32,
 
@@ -142,7 +140,8 @@ impl Default for Settings {
             queue_size: DEFAULT_QUEUE_SIZE,
             overrun: Overrun::default(),
             discont_threshold_ms: DEFAULT_DISCONT_THRESHOLD_MS,
-            vad_max_wait_ms: DEFAULT_VAD_MAX_WAIT_MS,
+            vad: DEFAULT_VAD,
+            vad_threshold: vad::DEFAULT_THRESHOLD,
             warmup_pad_ms: DEFAULT_WARMUP_PAD_MS,
             backend: Backend::default(),
             gpu_device: 0,
@@ -399,13 +398,13 @@ impl Transcriber {
                         // loaded model can supply. Chunked inference re-reads
                         // its whole window every run and does not carry the
                         // cold-start damage, so it is left ungated.
-                        let max_wait_ms = self.settings.lock().unwrap().vad_max_wait_ms;
-                        let warmup_pad_ms = self.settings.lock().unwrap().warmup_pad_ms;
-                        state.gate = (info.streaming && max_wait_ms > 0).then(|| {
-                            let mut gate = vad::Gate::new(
-                                info.native_sample_rate.max(1) as u64,
-                                max_wait_ms as u64,
-                            );
+                        let (vad, threshold, warmup_pad_ms) = {
+                            let settings = self.settings.lock().unwrap();
+                            (settings.vad, settings.vad_threshold, settings.warmup_pad_ms)
+                        };
+                        state.gate = (info.streaming && vad).then(|| {
+                            let mut gate = vad::Gate::new(info.native_sample_rate.max(1) as u64);
+                            gate.set_threshold(threshold);
                             gate.set_warmup_pad_ms(warmup_pad_ms as u64);
                             gate
                         });
@@ -790,58 +789,11 @@ impl Transcriber {
         }
     }
 
-    /// Hand the gate's withheld audio to the model, if it is still waiting.
-    ///
-    /// Called wherever a stream ends. Without this a stream that is quiet
-    /// throughout - a held meeting, a muted speaker - would be dropped
-    /// entirely rather than transcribed as best the model can.
-    fn release_gate(&self) -> Result<(), gst::FlowError> {
-        let released = {
-            let mut state = self.state.lock().unwrap();
-            let Some(gate) = state.gate.as_mut() else {
-                return Ok(());
-            };
-            if gate.is_open() {
-                return Ok(());
-            }
-            let Some(vad::Decision::Open { audio, .. }) = gate.take_held() else {
-                return Ok(());
-            };
-
-            // No speech was ever detected, so the timeline starts where the
-            // withheld audio does.
-            if state.base_pts.is_none() {
-                let start = state.next_pts.unwrap_or(gst::ClockTime::ZERO);
-                let rate = state
-                    .info
-                    .as_ref()
-                    .map(|info| info.native_sample_rate.max(1) as u64)
-                    .unwrap_or(1);
-                let start = start
-                    .checked_sub(samples_duration(audio.len() as u64, rate))
-                    .unwrap_or(gst::ClockTime::ZERO);
-                state.base_pts = Some(start);
-                state.out_pts = Some(start);
-            }
-            audio
-        };
-
-        gst::debug!(
-            CAT,
-            imp = self,
-            "stream ended without speech, feeding {} withheld sample(s)",
-            released.len()
-        );
-        self.send_cmd(Cmd::Feed(released))
-    }
-
     /// Flush the model's buffered audio and push whatever it produces.
     fn finalize(&self) -> Result<(), gst::FlowError> {
-        // The gate may still be holding the whole stream, waiting for speech
-        // that is now never going to arrive. Quiet audio is still audio the
-        // user wants a transcript for, so release it instead of dropping it.
-        self.release_gate()?;
-
+        // A gate that never opened has nothing to flush: the audio it saw was
+        // not speech, and handing a minute of silence to the model on the way
+        // out would cost real compute to produce nothing.
         if self.state.lock().unwrap().base_pts.is_none() {
             return Ok(());
         }
@@ -954,10 +906,13 @@ impl Transcriber {
                     audio,
                     warmup,
                 } => {
-                    // The gate can reach back into buffers it already
-                    // withheld, so the audio it releases starts before this
-                    // buffer does. Anchor to where the gate was armed and let
-                    // the skip carry the rest.
+                    // The gate opens on audio that reaches back before this
+                    // buffer - its preroll spans earlier buffers. Together
+                    // the dropped audio and the released audio account for
+                    // everything the gate ever saw, so subtracting both from
+                    // the end of this buffer recovers the instant the gate
+                    // was armed, and the skip places the model's first
+                    // sample on the timeline from there.
                     let armed_at = buffer_end
                         .checked_sub(samples_duration(skipped_samples + audio.len() as u64, rate))
                         .unwrap_or(gst::ClockTime::ZERO);
@@ -1505,14 +1460,23 @@ impl ObjectImpl for Transcriber {
                     )
                     .default_value(DEFAULT_DISCONT_THRESHOLD_MS)
                     .build(),
-                glib::ParamSpecUInt::builder("vad-max-wait")
-                    .nick("VAD Max Wait")
+                glib::ParamSpecBoolean::builder("vad")
+                    .nick("VAD")
                     .blurb(
-                        "mode=stream: withhold audio until speech is detected, so the \
-                         model never opens its stream on silence, giving up after this \
-                         many milliseconds. 0 disables the gate",
+                        "mode=stream: discard audio until speech is detected, so the \
+                         model never opens its stream on silence",
                     )
-                    .default_value(DEFAULT_VAD_MAX_WAIT_MS)
+                    .default_value(DEFAULT_VAD)
+                    .build(),
+                glib::ParamSpecFloat::builder("vad-threshold")
+                    .nick("VAD Threshold")
+                    .blurb(
+                        "Score from 0 to 1 a frame must reach to count as speech. \
+                         Higher is stricter",
+                    )
+                    .minimum(0.0)
+                    .maximum(1.0)
+                    .default_value(vad::DEFAULT_THRESHOLD)
                     .build(),
                 glib::ParamSpecUInt::builder("warmup-pad")
                     .nick("Warmup Pad")
@@ -1660,7 +1624,8 @@ impl ObjectImpl for Transcriber {
             "queue-size" => settings.queue_size = value.get().unwrap(),
             "overrun" => settings.overrun = value.get().unwrap(),
             "discont-threshold" => settings.discont_threshold_ms = value.get().unwrap(),
-            "vad-max-wait" => settings.vad_max_wait_ms = value.get().unwrap(),
+            "vad" => settings.vad = value.get().unwrap(),
+            "vad-threshold" => settings.vad_threshold = value.get().unwrap(),
             "warmup-pad" => settings.warmup_pad_ms = value.get().unwrap(),
             "backend" => settings.backend = value.get().unwrap(),
             "gpu-device" => settings.gpu_device = value.get().unwrap(),
@@ -1729,7 +1694,8 @@ impl ObjectImpl for Transcriber {
             "queue-size" => settings.queue_size.to_value(),
             "overrun" => settings.overrun.to_value(),
             "discont-threshold" => settings.discont_threshold_ms.to_value(),
-            "vad-max-wait" => settings.vad_max_wait_ms.to_value(),
+            "vad" => settings.vad.to_value(),
+            "vad-threshold" => settings.vad_threshold.to_value(),
             "warmup-pad" => settings.warmup_pad_ms.to_value(),
             "backend" => settings.backend.to_value(),
             "gpu-device" => settings.gpu_device.to_value(),

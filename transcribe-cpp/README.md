@@ -239,7 +239,8 @@ Timing. The first three add up to the latency reported downstream:
 | `chunk-duration` | 4000 | `mode=chunked`: new audio accumulated before each inference run, in ms |
 | `live-edge-offset` | 1000 | `mode=chunked`: trailing audio whose words are withheld as unstable, in ms. Must be less than `chunk-duration` |
 | `discont-threshold` | 500 | A timeline jump larger than this (ms) finalizes the current stream and starts a new one |
-| `vad-max-wait` | 30000 | `mode=stream`: withhold audio until speech starts, so the model never opens its stream on silence, giving up after this many ms. 0 disables it — see [Opening on silence](#opening-on-silence) |
+| `vad` | `true` | `mode=stream`: discard audio until speech starts, so the model never opens its stream on silence — see [Opening on silence](#opening-on-silence) |
+| `vad-threshold` | 0.6 | Score from 0 to 1 a frame must reach to count as speech. Higher is stricter |
 | `warmup-pad` | 80 | `mode=stream`: ms of digital silence fed as a priming chunk before the first speech. 0 disables it — see [Opening on silence](#opening-on-silence) |
 
 Text and language:
@@ -345,11 +346,25 @@ poisons it: in the recording this was diagnosed against, a stream that began
 with 8s of room tone committed nothing at all for the next 40 seconds of
 speech, and even 100ms of leading digital silence was enough to drop words.
 
-`mode=stream` therefore withholds audio until [earshot] reports voice, so the
-model's first chunk lands on speech. `vad-max-wait` bounds the wait: a source
-that is silent for that long opens the stream anyway rather than stalling the
-pipeline, and a stream that ends before the gate ever opened hands its audio
-over on EOS rather than dropping it. `vad-max-wait=0` disables the gate.
+`mode=stream` therefore discards audio until [earshot] reports voice, so the
+model's first chunk lands on speech. Rejected audio is dropped as it is
+classified — only ~500ms is retained, so the attack of the first word is not
+clipped — which keeps memory flat however long the wait lasts and means
+silence never reaches the model at all. On a recording opening with 106s of
+digital silence that is the difference between 38s of CPU and 0.3s.
+
+There is deliberately no deadline. Withholding never blocks — the element
+keeps emitting gap events so a downstream aggregator can advance — and waiting
+costs nothing now that rejected audio is discarded. A timer would only fire
+part-way through a long lead-in and hand the model exactly the silence the
+gate exists to keep out, which is how a 30s deadline used to *lose* the
+opening sentence of a session that began with 106s of silence. If the
+detector is wrong for a source, set `vad=false` rather than time it out.
+
+`vad-threshold` is rarely worth touching: across two real recordings voiced
+frames score a median of 0.91 against 0.21 for rejected ones, and anything
+from 0.6 to 0.8 opens within ~100ms of the true onset. Below 0.5 it starts
+tripping on room noise.
 
 Timestamps are unaffected. The gate only decides *when the first sample
 reaches the model*; the element anchors word times to the first sample it
