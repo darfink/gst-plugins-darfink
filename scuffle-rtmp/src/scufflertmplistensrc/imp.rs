@@ -6,6 +6,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use gst::glib;
+use gst::prelude::*;
 use gst::subclass::prelude::*;
 use gst_base::prelude::*;
 use gst_base::subclass::base_src::CreateSuccess;
@@ -23,6 +24,7 @@ const DEFAULT_ACCEPT_TIMEOUT: u64 = 0;
 const DEFAULT_HANDSHAKE_TIMEOUT: u64 = 10_000_000_000;
 const DEFAULT_READ_TIMEOUT: u64 = 0;
 const DEFAULT_WRITE_TIMEOUT: u64 = 10_000_000_000;
+const DEFAULT_KEEP_LISTENING: bool = false;
 const OUTPUT_QUEUE_CAPACITY: usize = 1;
 const CREATE_POLL_INTERVAL: Duration = Duration::from_millis(100);
 const WORKER_START_TIMEOUT: Duration = Duration::from_secs(2);
@@ -49,6 +51,7 @@ struct Settings {
   handshake_timeout: u64,
   read_timeout: u64,
   write_timeout: u64,
+  keep_listening: bool,
   application: Option<String>,
   stream_key: Option<String>,
 }
@@ -63,6 +66,7 @@ impl Default for Settings {
       handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT,
       read_timeout: DEFAULT_READ_TIMEOUT,
       write_timeout: DEFAULT_WRITE_TIMEOUT,
+      keep_listening: DEFAULT_KEEP_LISTENING,
       application: None,
       stream_key: None,
     }
@@ -74,6 +78,7 @@ enum WorkerOutput {
   Warning(String),
   Error(String),
   Eos,
+  ConnectionRemoved,
   Wake,
 }
 
@@ -90,6 +95,7 @@ pub struct ScuffleRtmpListenSrc {
   settings: Mutex<Settings>,
   state: Mutex<State>,
   flushing: AtomicBool,
+  discontinuity_pending: AtomicBool,
 }
 
 #[glib::object_subclass]
@@ -146,6 +152,12 @@ impl ObjectImpl for ScuffleRtmpListenSrc {
           .default_value(DEFAULT_WRITE_TIMEOUT)
           .mutable_ready()
           .build(),
+        glib::ParamSpecBoolean::builder("keep-listening")
+          .nick("Keep listening")
+          .blurb("Keep waiting for another RTMP publisher after disconnect")
+          .default_value(DEFAULT_KEEP_LISTENING)
+          .mutable_ready()
+          .build(),
         glib::ParamSpecString::builder("application")
           .nick("RTMP application")
           .blurb("RTMP application path component to accept (unset accepts any)")
@@ -192,6 +204,9 @@ impl ObjectImpl for ScuffleRtmpListenSrc {
       "write-timeout" => {
         settings.write_timeout = value.get().expect("write-timeout type checked upstream");
       }
+      "keep-listening" => {
+        settings.keep_listening = value.get().expect("keep-listening type checked upstream");
+      }
       "application" => {
         settings.application = value.get().expect("application type checked upstream");
       }
@@ -213,6 +228,7 @@ impl ObjectImpl for ScuffleRtmpListenSrc {
       "handshake-timeout" => settings.handshake_timeout.to_value(),
       "read-timeout" => settings.read_timeout.to_value(),
       "write-timeout" => settings.write_timeout.to_value(),
+      "keep-listening" => settings.keep_listening.to_value(),
       "application" => settings.application.to_value(),
       "stream-key" => settings.stream_key.to_value(),
       _ => unimplemented!(),
@@ -360,6 +376,7 @@ impl BaseSrcImpl for ScuffleRtmpListenSrc {
     }
 
     self.flushing.store(false, Ordering::Release);
+    self.discontinuity_pending.store(false, Ordering::Release);
 
     if settings.port == 0 {
       self.settings.lock().expect("settings mutex poisoned").port = local_port;
@@ -380,6 +397,7 @@ impl BaseSrcImpl for ScuffleRtmpListenSrc {
   fn stop(&self) -> Result<(), gst::ErrorMessage> {
     gst::info!(CAT, imp = self, "Stopping RTMP listener");
     self.flushing.store(true, Ordering::Release);
+    self.discontinuity_pending.store(false, Ordering::Release);
 
     let (sender, cancellation, worker) = {
       let mut state = self.state.lock().expect("state mutex poisoned");
@@ -449,12 +467,25 @@ impl PushSrcImpl for ScuffleRtmpListenSrc {
 
       match receiver.recv_timeout(CREATE_POLL_INTERVAL) {
         Ok(WorkerOutput::Data(data)) => {
-          return Ok(CreateSuccess::NewBuffer(gst::Buffer::from_mut_slice(data)));
+          let mut buffer = gst::Buffer::from_mut_slice(data);
+          if self.discontinuity_pending.swap(false, Ordering::AcqRel) {
+            buffer
+              .get_mut()
+              .expect("new buffer is uniquely owned")
+              .set_flags(gst::BufferFlags::DISCONT);
+          }
+          return Ok(CreateSuccess::NewBuffer(buffer));
         }
         Ok(WorkerOutput::Warning(warning)) => {
           gst::element_imp_warning!(self, gst::ResourceError::Read, ["{warning}"]);
         }
         Ok(WorkerOutput::Eos) => return Err(gst::FlowError::Eos),
+        Ok(WorkerOutput::ConnectionRemoved) => {
+          self.discontinuity_pending.store(true, Ordering::Release);
+          let message =
+            gst::message::Element::new(gst::Structure::builder("connection-removed").build());
+          let _ = self.obj().post_message(message);
+        }
         Ok(WorkerOutput::Error(error)) => {
           gst::element_imp_error!(self, gst::ResourceError::Read, ["{error}"]);
           return Err(gst::FlowError::Error);
@@ -505,88 +536,107 @@ fn run_worker(
       return;
     }
 
-    let accept = async {
-      if settings.accept_timeout == 0 {
-        listener.accept().await.map_err(|error| error.to_string())
-      } else {
-        let timeout = Duration::from_nanos(settings.accept_timeout);
-        tokio::time::timeout(timeout, listener.accept())
-          .await
-          .map_err(|_| format!("Timed out waiting {timeout:?} for an RTMP publisher"))?
-          .map_err(|error| error.to_string())
-      }
-    };
-    let accepted = tokio::select! {
-      _ = cancellation.cancelled() => return,
-      accepted = accept => accepted,
-    };
-    let (stream, peer_address) = match accepted {
-      Ok(accepted) => accepted,
-      Err(error) => {
+    loop {
+      let accept = async {
+        if settings.accept_timeout == 0 {
+          listener.accept().await.map_err(|error| error.to_string())
+        } else {
+          let timeout = Duration::from_nanos(settings.accept_timeout);
+          tokio::time::timeout(timeout, listener.accept())
+            .await
+            .map_err(|_| format!("Timed out waiting {timeout:?} for an RTMP publisher"))?
+            .map_err(|error| error.to_string())
+        }
+      };
+      let accepted = tokio::select! {
+        _ = cancellation.cancelled() => return,
+        accepted = accept => accepted,
+      };
+      let (stream, peer_address) = match accepted {
+        Ok(accepted) => accepted,
+        Err(error) => {
+          send_output(
+            &output,
+            &cancellation,
+            WorkerOutput::Error(format!("Failed to accept RTMP publisher: {error}")),
+          )
+          .await;
+          return;
+        }
+      };
+
+      if let Err(error) = stream.set_nodelay(settings.tcp_nodelay) {
         send_output(
           &output,
           &cancellation,
-          WorkerOutput::Error(format!("Failed to accept RTMP publisher: {error}")),
+          WorkerOutput::Error(format!("Failed to configure TCP_NODELAY: {error}")),
         )
         .await;
         return;
       }
-    };
-    drop(listener);
 
-    if let Err(error) = stream.set_nodelay(settings.tcp_nodelay) {
-      send_output(
-        &output,
-        &cancellation,
-        WorkerOutput::Error(format!("Failed to configure TCP_NODELAY: {error}")),
-      )
-      .await;
-      return;
-    }
+      gst::info!(
+        CAT,
+        "Accepted RTMP publisher connection from {peer_address}"
+      );
 
-    gst::info!(
-      CAT,
-      "Accepted RTMP publisher connection from {peer_address}"
-    );
+      let handler = RtmpHandler::new(
+        output.clone(),
+        cancellation.clone(),
+        settings.application.clone(),
+        settings.stream_key.clone(),
+      );
+      let session = ServerSession::new(stream, handler).with_timeouts(ServerSessionTimeouts {
+        handshake_read: nanoseconds_timeout(settings.handshake_timeout),
+        session_read: nanoseconds_timeout(settings.read_timeout),
+        write: nanoseconds_timeout(settings.write_timeout),
+      });
+      let result = tokio::select! {
+        _ = cancellation.cancelled() => return,
+        result = session.run() => result,
+      };
 
-    let handler = RtmpHandler::new(
-      output.clone(),
-      cancellation.clone(),
-      settings.application,
-      settings.stream_key,
-    );
-    let session = ServerSession::new(stream, handler).with_timeouts(ServerSessionTimeouts {
-      handshake_read: nanoseconds_timeout(settings.handshake_timeout),
-      session_read: nanoseconds_timeout(settings.read_timeout),
-      write: nanoseconds_timeout(settings.write_timeout),
-    });
-    let result = tokio::select! {
-      _ = cancellation.cancelled() => return,
-      result = session.run() => result,
-    };
-
-    match result {
-      Ok(true) => {
-        gst::info!(CAT, "RTMP publisher completed cleanly");
-        send_output(&output, &cancellation, WorkerOutput::Eos).await;
-      }
-      Ok(false) => {
-        send_output(
-          &output,
-          &cancellation,
-          WorkerOutput::Warning("RTMP publisher disconnected without unpublishing".into()),
-        )
-        .await;
-        send_output(&output, &cancellation, WorkerOutput::Eos).await;
-      }
-      Err(error) => {
-        gst::warning!(CAT, "RTMP session failed: {error}");
-        send_output(
-          &output,
-          &cancellation,
-          WorkerOutput::Error(format!("RTMP session failed: {error}")),
-        )
-        .await;
+      match result {
+        Ok(true) => {
+          gst::info!(CAT, "RTMP publisher completed cleanly");
+          if settings.keep_listening {
+            if !send_output(&output, &cancellation, WorkerOutput::ConnectionRemoved).await {
+              return;
+            }
+            continue;
+          }
+          send_output(&output, &cancellation, WorkerOutput::Eos).await;
+          return;
+        }
+        Ok(false) => {
+          if !send_output(
+            &output,
+            &cancellation,
+            WorkerOutput::Warning("RTMP publisher disconnected without unpublishing".into()),
+          )
+          .await
+          {
+            return;
+          }
+          if settings.keep_listening {
+            if !send_output(&output, &cancellation, WorkerOutput::ConnectionRemoved).await {
+              return;
+            }
+            continue;
+          }
+          send_output(&output, &cancellation, WorkerOutput::Eos).await;
+          return;
+        }
+        Err(error) => {
+          gst::warning!(CAT, "RTMP session failed: {error}");
+          send_output(
+            &output,
+            &cancellation,
+            WorkerOutput::Error(format!("RTMP session failed: {error}")),
+          )
+          .await;
+          return;
+        }
       }
     }
   });

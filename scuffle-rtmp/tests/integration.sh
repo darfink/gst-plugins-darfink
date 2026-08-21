@@ -60,6 +60,24 @@ wait_for_listener() {
   fail "GStreamer pipeline did not begin listening"
 }
 
+wait_for_log() {
+  local log=$1
+  local pattern=$2
+  local attempt
+  for attempt in {1..100}; do
+    if grep -q "$pattern" "$log" 2>/dev/null; then
+      return 0
+    fi
+    if ! kill -0 "$gst_pid" 2>/dev/null; then
+      sed -n '1,160p' "$log" >&2
+      fail "GStreamer pipeline exited before logging: $pattern"
+    fi
+    sleep 0.05
+  done
+  sed -n '1,160p' "$log" >&2
+  fail "GStreamer pipeline did not log: $pattern"
+}
+
 start_pipeline() {
   local log=$1
   shift
@@ -172,6 +190,47 @@ test_abrupt_disconnect_drains_eos() {
   echo "PASS abrupt disconnect drains as EOS"
 }
 
+test_keep_listening_reconnects() {
+  local port=$((port_base + 5))
+  local log="$tmp_dir/keep-listening.log"
+  check_port "$port"
+  start_pipeline "$log" -m \
+    scufflertmplistensrc address=127.0.0.1 port="$port" application=live stream-key=reconnect keep-listening=true \
+    ! fakesink
+
+  ffmpeg -hide_banner -loglevel error -re -stream_loop -1 -i "$fixture" \
+    -map 0:v:0 -map 0:a:0 -c copy -f flv \
+    "rtmp://127.0.0.1:$port/live/reconnect" >"$tmp_dir/reconnect-first-ffmpeg.log" 2>&1 &
+  publisher_pid=$!
+  wait_for_log "$log" "Accepted RTMP publish"
+  kill -KILL "$publisher_pid" 2>/dev/null || true
+  wait "$publisher_pid" 2>/dev/null || true
+  publisher_pid=
+
+  wait_for_log "$log" "connection-removed"
+  kill -0 "$gst_pid" 2>/dev/null || fail "keep-listening pipeline stopped after disconnect"
+  grep -q "Got EOS" "$log" && fail "keep-listening pipeline emitted EOS after disconnect"
+
+  ffmpeg -hide_banner -loglevel error -re -i "$fixture" -t 2 \
+    -map 0:v:0 -map 0:a:0 -c copy -f flv \
+    "rtmp://127.0.0.1:$port/live/reconnect" >"$tmp_dir/reconnect-second-ffmpeg.log" 2>&1
+
+  for attempt in {1..100}; do
+    if [[ $(grep -c "Accepted RTMP publisher connection" "$log" 2>/dev/null || true) -ge 2 ]]; then
+      break
+    fi
+    sleep 0.05
+  done
+  [[ $(grep -c "Accepted RTMP publisher connection" "$log" 2>/dev/null || true) -ge 2 ]] ||
+    fail "keep-listening pipeline did not accept the second publisher"
+  grep -q "Got EOS" "$log" && fail "keep-listening pipeline emitted EOS after reconnect"
+
+  kill -INT "$gst_pid" 2>/dev/null || true
+  wait "$gst_pid" 2>/dev/null || true
+  gst_pid=
+  echo "PASS keep-listening reconnect"
+}
+
 test_multitrack() {
   local port=$((port_base + 4))
   local log="$tmp_dir/multitrack.log"
@@ -214,6 +273,7 @@ test_accept_timeout
 test_rejected_stream_key
 test_clean_av_and_eos
 test_abrupt_disconnect_drains_eos
+test_keep_listening_reconnects
 test_multitrack
 
 echo "All scufflertmplistensrc integration tests passed"
