@@ -62,7 +62,7 @@ That runs the listener pipeline on port 1935; publish to
 | Property | Default | Meaning |
 | --- | --- | --- |
 | `address`, `port` | `0.0.0.0`, `1935` | Listen endpoint |
-| `application`, `stream-key` | unset | Require exact matches for the two path components in `rtmp://host/application/stream-key`. A mismatch closes the connection and fails the pipeline |
+| `application`, `stream-key` | unset | Require exact matches for the two path components in `rtmp://host/application/stream-key`. A mismatch closes that connection; it fails the pipeline unless `keep-listening=true` |
 | `tcp-nodelay` | `true` | `TCP_NODELAY` on the accepted connection |
 | `accept-timeout` | 0 | Nanoseconds to wait for a publisher; 0 waits indefinitely |
 | `handshake-timeout` | 10s | Per-handshake-read timeout in nanoseconds; 0 disables |
@@ -81,10 +81,9 @@ With `keep-listening=true`, the listener keeps its TCP socket open after the
 publisher disconnects and waits for another publisher. It emits no buffers or
 GAP events during the outage, and posts an element bus message named
 `connection-removed`. Buffers resume when the next publisher connects; the first
-resumed buffer is marked `DISCONT`. The FLV header is emitted once per element
-activation, so reconnects continue the same FLV byte stream without another
-container header. If the resumed publisher changes between audio/video track
-combinations, the element logs a warning but leaves the stream running.
+resumed buffer is marked `DISCONT`. Each publisher session emits one FLV header,
+including after a reconnect. A publisher with a mismatched
+application or stream key is rejected without stopping the listener.
 
 ## Enhanced RTMP and multitrack
 

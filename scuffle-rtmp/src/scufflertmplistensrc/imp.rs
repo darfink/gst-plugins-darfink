@@ -1,7 +1,7 @@
 use std::io;
 use std::net::{IpAddr, SocketAddr, TcpListener};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -580,11 +580,14 @@ fn run_worker(
         "Accepted RTMP publisher connection from {peer_address}"
       );
 
+      let rejected = Arc::new(AtomicBool::new(false));
       let handler = RtmpHandler::new(
         output.clone(),
         cancellation.clone(),
         settings.application.clone(),
         settings.stream_key.clone(),
+        settings.keep_listening,
+        rejected.clone(),
       );
       let session = ServerSession::new(stream, handler).with_timeouts(ServerSessionTimeouts {
         handshake_read: nanoseconds_timeout(settings.handshake_timeout),
@@ -595,6 +598,11 @@ fn run_worker(
         _ = cancellation.cancelled() => return,
         result = session.run() => result,
       };
+
+      if settings.keep_listening && rejected.load(Ordering::Acquire) {
+        gst::info!(CAT, "Rejected RTMP publisher; continuing to listen");
+        continue;
+      }
 
       match result {
         Ok(true) => {
@@ -677,6 +685,8 @@ struct RtmpHandler {
   cancellation: CancellationToken,
   application: Option<String>,
   stream_key: Option<String>,
+  keep_listening: bool,
+  rejected: Arc<AtomicBool>,
   header_sent: bool,
 }
 
@@ -686,12 +696,16 @@ impl RtmpHandler {
     cancellation: CancellationToken,
     application: Option<String>,
     stream_key: Option<String>,
+    keep_listening: bool,
+    rejected: Arc<AtomicBool>,
   ) -> Self {
     Self {
       output,
       cancellation,
       application,
       stream_key,
+      keep_listening,
+      rejected,
       header_sent: false,
     }
   }
@@ -728,6 +742,12 @@ impl SessionHandler for RtmpHandler {
       .is_none_or(|expected| expected == stream_name);
     if !app_matches || !key_matches {
       gst::warning!(CAT, "Rejected RTMP publish for stream id {stream_id}");
+      if self.keep_listening {
+        self.rejected.store(true, Ordering::Release);
+        // End only this session; the worker turns this marker into another
+        // accept() instead of reporting a source error.
+        return Err(ServerSessionError::PlayNotSupported);
+      }
       send_output(
         &self.output,
         &self.cancellation,
