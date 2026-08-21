@@ -628,6 +628,13 @@ fn run_worker(
           return;
         }
         Err(error) => {
+          if settings.keep_listening && is_client_disconnect(&error) {
+            gst::warning!(CAT, "RTMP publisher disconnected abruptly: {error}");
+            if !send_output(&output, &cancellation, WorkerOutput::ConnectionRemoved).await {
+              return;
+            }
+            continue;
+          }
           gst::warning!(CAT, "RTMP session failed: {error}");
           send_output(
             &output,
@@ -644,6 +651,25 @@ fn run_worker(
 
 fn nanoseconds_timeout(nanoseconds: u64) -> Option<Duration> {
   (nanoseconds != 0).then(|| Duration::from_nanos(nanoseconds))
+}
+
+/// True when the session ended because the publisher vanished rather than
+/// because this element or the network stack misbehaved. A killed client
+/// surfaces as EPIPE on the next write; the vendored session classifies only
+/// ConnectionAborted, ConnectionReset and UnexpectedEof as client-closed.
+fn is_client_disconnect(error: &scuffle_rtmp::error::RtmpError) -> bool {
+  use scuffle_rtmp::error::RtmpError;
+  match error {
+    RtmpError::Io(io_error) => matches!(
+      io_error.kind(),
+      io::ErrorKind::ConnectionAborted
+        | io::ErrorKind::ConnectionReset
+        | io::ErrorKind::UnexpectedEof
+        | io::ErrorKind::BrokenPipe
+    ),
+    RtmpError::Session(ServerSessionError::Timeout(_)) => true,
+    _ => false,
+  }
 }
 
 struct RtmpHandler {

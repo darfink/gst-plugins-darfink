@@ -1,7 +1,7 @@
 # Build and register the text roll-up element without installing Rust or
 # GStreamer development packages locally.
 #
-#   docker build -t gst-textrollup .
+#   docker build -t gst-textrollup -f textrollup/Dockerfile .
 #   docker run --rm gst-textrollup
 #
 # The default command verifies that the plugin loads. The speech-to-text
@@ -28,10 +28,10 @@ WORKDIR /src
 
 # Build dependencies first so editing the element does not rebuild the
 # dependency graph. This project intentionally does not commit Cargo.lock.
-COPY Cargo.toml ./
+COPY textrollup/Cargo.toml ./
 RUN mkdir -p src && echo '' > src/lib.rs && cargo build --release || true
 
-COPY src ./src
+COPY textrollup/src ./src
 RUN touch src/lib.rs && cargo build --release
 
 FROM ubuntu:24.04 AS runtime

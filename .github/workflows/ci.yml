@@ -26,7 +26,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-            gstreamer1.0-tools
+            gstreamer1.0-plugins-ugly gstreamer1.0-tools
 
       - name: Install GStreamer (macOS)
         if: runner.os == 'macOS'
@@ -151,4 +151,4 @@ jobs:
           - { name: scuffle-rtmp, directory: scuffle-rtmp }
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t gst-${{ matrix.name }} ./${{ matrix.directory }}
+      - run: docker build -t gst-${{ matrix.name }} -f ./${{ matrix.directory }}/Dockerfile .

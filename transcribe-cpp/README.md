@@ -87,11 +87,70 @@ live path automatically when upstream answers the latency query as live.
 To try it without a local toolchain:
 
 ```bash
-docker build -t gst-transcribe-cpp ./transcribe-cpp && docker run --rm gst-transcribe-cpp
+docker build -t gst-transcribe-cpp -f transcribe-cpp/Dockerfile . &&
+  docker run --rm gst-transcribe-cpp
 ```
 
 The image builds the plugin, downloads a small model, and transcribes a
 synthesised clip. It is a CPU build; see [Build](#build) for GPU backends.
+
+## Properties
+
+`model-path` is the only one you must set. Everything else has a default that
+suits the loaded family.
+
+| Property | Default | Meaning |
+| --- | --- | --- |
+| `model-path` | unset | Path to a GGUF model understood by transcribe.cpp. Required |
+| `mode` | `auto` | `auto`, `stream`, or `chunked`. `auto` streams when the model supports it — see [Modes](#modes) |
+| `backend` | `auto` | `auto`, `cpu`, `cpu-accel`, `metal`, `vulkan`, `cuda`. `cpu` is the deterministic choice |
+| `n-threads` | 0 | CPU threads for ops that run on CPU; 0 uses the library default |
+| `gpu-device` | 0 | GPU device registry index; 0 auto-selects, preferring discrete GPUs |
+| `model-info` | — | **Read-only.** What the loaded model reported about itself, including `max-timestamp-kind`. Unset until loaded |
+
+Timing. The first three add up to the latency reported downstream:
+
+| Property | Default | Meaning |
+| --- | --- | --- |
+| `latency` | 1000 | Declared processing budget, in ms — see [Latency](#latency) |
+| `chunk-duration` | 4000 | `mode=chunked`: new audio accumulated before each inference run, in ms |
+| `live-edge-offset` | 1000 | `mode=chunked`: trailing audio whose words are withheld as unstable, in ms. Must be less than `chunk-duration` |
+| `discont-threshold` | 500 | A timeline jump larger than this (ms) finalizes the current stream and starts a new one |
+| `vad` | `true` | `mode=stream`: discard audio until speech starts, so the model never opens its stream on silence — see [Opening on silence](#opening-on-silence) |
+| `vad-threshold` | 0.6 | Score from 0 to 1 a frame must reach to count as speech. Higher is stricter |
+| `warmup-pad` | 80 | `mode=stream`: ms of digital silence fed as a priming chunk before the first speech. 0 disables it — see [Opening on silence](#opening-on-silence) |
+
+Text and language:
+
+| Property | Default | Meaning |
+| --- | --- | --- |
+| `language` | unset | Source language hint (ISO code); unset auto-detects |
+| `task` | `transcribe` | `transcribe` or `translate` |
+| `target-language` | unset | Target language (ISO code) when `task=translate` |
+| `timestamps` | `auto` | `none`, `auto`, `segment`, `word`, `token`. A request, not a guarantee — see [Output](#output) |
+| `pnc` | `default` | Punctuation and capitalization: `default`, `off`, `on`, on supporting families |
+| `itn` | `default` | Inverse text normalization: `default`, `off`, `on`, on supporting families |
+| `keep-special-tags` | `false` | Keep special vocabulary tags in the returned text |
+
+Streaming and decoding:
+
+| Property | Default | Meaning |
+| --- | --- | --- |
+| `commit-policy` | `auto` | `auto`, `on-finalize`, `stable-prefix` — see [Commit policy](#commit-policy) |
+| `stable-prefix-agreement-n` | 0 | `mode=stream`: consecutive agreeing hypotheses before a prefix commits; 0 uses the library default |
+| `n-ctx` | 0 | Decoder context cap in tokens; 0 uses the model maximum |
+| `kv-type` | `auto` | K/V activation precision: `auto`, `f32`, `f16` |
+| `spec-k-drafts` | -1 | Speculative-decode draft length; -1 family default, 0 disabled |
+| `family-options` | unset | Family-specific knobs as a named structure — see [Examples](#examples) |
+
+Flow control on a live source:
+
+| Property | Default | Meaning |
+| --- | --- | --- |
+| `queue-size` | 32 | How many audio buffers may be queued for inference |
+| `overrun` | `block` | `block` upstream until the worker catches up, or `drop` audio that does not fit the queue |
+
+There is one signal, `partial-transcript` — see [Partials](#partials).
 
 ## Modes
 
@@ -217,64 +276,6 @@ streaming thread and must not block.
 Set `timestamps=none` if you do not need alignment at all; the element then
 emits one buffer per commit.
 
-## Properties
-
-`model-path` is the only one you must set. Everything else has a default that
-suits the loaded family.
-
-| Property | Default | Meaning |
-| --- | --- | --- |
-| `model-path` | unset | Path to a GGUF model understood by transcribe.cpp. Required |
-| `mode` | `auto` | `auto`, `stream`, or `chunked`. `auto` streams when the model supports it — see [Modes](#modes) |
-| `backend` | `auto` | `auto`, `cpu`, `cpu-accel`, `metal`, `vulkan`, `cuda`. `cpu` is the deterministic choice |
-| `n-threads` | 0 | CPU threads for ops that run on CPU; 0 uses the library default |
-| `gpu-device` | 0 | GPU device registry index; 0 auto-selects, preferring discrete GPUs |
-| `model-info` | — | **Read-only.** What the loaded model reported about itself, including `max-timestamp-kind`. Unset until loaded |
-
-Timing. The first three add up to the latency reported downstream:
-
-| Property | Default | Meaning |
-| --- | --- | --- |
-| `latency` | 1000 | Declared processing budget, in ms — see [Latency](#latency) |
-| `chunk-duration` | 4000 | `mode=chunked`: new audio accumulated before each inference run, in ms |
-| `live-edge-offset` | 1000 | `mode=chunked`: trailing audio whose words are withheld as unstable, in ms. Must be less than `chunk-duration` |
-| `discont-threshold` | 500 | A timeline jump larger than this (ms) finalizes the current stream and starts a new one |
-| `vad` | `true` | `mode=stream`: discard audio until speech starts, so the model never opens its stream on silence — see [Opening on silence](#opening-on-silence) |
-| `vad-threshold` | 0.6 | Score from 0 to 1 a frame must reach to count as speech. Higher is stricter |
-| `warmup-pad` | 80 | `mode=stream`: ms of digital silence fed as a priming chunk before the first speech. 0 disables it — see [Opening on silence](#opening-on-silence) |
-
-Text and language:
-
-| Property | Default | Meaning |
-| --- | --- | --- |
-| `language` | unset | Source language hint (ISO code); unset auto-detects |
-| `task` | `transcribe` | `transcribe` or `translate` |
-| `target-language` | unset | Target language (ISO code) when `task=translate` |
-| `timestamps` | `auto` | `none`, `auto`, `segment`, `word`, `token`. A request, not a guarantee — see [Output](#output) |
-| `pnc` | `default` | Punctuation and capitalization: `default`, `off`, `on`, on supporting families |
-| `itn` | `default` | Inverse text normalization: `default`, `off`, `on`, on supporting families |
-| `keep-special-tags` | `false` | Keep special vocabulary tags in the returned text |
-
-Streaming and decoding:
-
-| Property | Default | Meaning |
-| --- | --- | --- |
-| `commit-policy` | `auto` | `auto`, `on-finalize`, `stable-prefix` — see [Commit policy](#commit-policy) |
-| `stable-prefix-agreement-n` | 0 | `mode=stream`: consecutive agreeing hypotheses before a prefix commits; 0 uses the library default |
-| `n-ctx` | 0 | Decoder context cap in tokens; 0 uses the model maximum |
-| `kv-type` | `auto` | K/V activation precision: `auto`, `f32`, `f16` |
-| `spec-k-drafts` | -1 | Speculative-decode draft length; -1 family default, 0 disabled |
-| `family-options` | unset | Family-specific knobs as a named structure — see [Examples](#examples) |
-
-Flow control on a live source:
-
-| Property | Default | Meaning |
-| --- | --- | --- |
-| `queue-size` | 32 | How many audio buffers may be queued for inference |
-| `overrun` | `block` | `block` upstream until the worker catches up, or `drop` audio that does not fit the queue |
-
-There is one signal, `partial-transcript` — see [Partials](#partials).
-
 ## Examples
 
 Chunked, with a whisper model. transcribe.cpp reads whisper.cpp's legacy
@@ -337,7 +338,37 @@ capabilities and rejects mismatched caps. Put `audioconvert ! audioresample` in
 front of it and negotiation lands on the right rate by itself. Input must be
 mono `F32LE`.
 
-## Opening on silence
+## Debugging
+
+```bash
+GST_DEBUG=transcribecpptranscriber:6 gst-launch-1.0 ...
+```
+
+Logs model load (architecture, variant, backend, native rate, alignment
+granularity and resolved mode at INFO), each committed word as it is pushed, and
+per-run compute time against the audio consumed. On a live pipeline it warns
+when inference falls behind real time.
+
+`transcribecpplib:5` is a separate category carrying transcribe.cpp's own log
+output, which is where decoder-level detail lives:
+
+```bash
+GST_DEBUG=transcribecpptranscriber:6,transcribecpplib:5 gst-launch-1.0 ...
+```
+
+## Tests
+
+```bash
+cargo test
+```
+
+Unit tests cover the commit tracker's prefix handling, token-to-word joining,
+and the sliding-window logic — the parts where an off-by-one silently corrupts
+text rather than failing loudly. They need no model.
+
+## Design notes
+
+### Opening on silence
 
 Streaming families are fed audio as it arrives, so the first thing they ever
 see becomes part of their state — and some of them never recover from a bad
@@ -387,7 +418,7 @@ pause trades this bug for dropped words at the boundaries instead.
 
 [earshot]: https://github.com/pykeio/earshot
 
-## Latency
+### Latency
 
 `latency` is your declared processing budget, added to the latency reported
 downstream. Separately, on a live pipeline the element warns when inference
@@ -403,7 +434,7 @@ If inference cannot keep up with a live source, `overrun=block` (default)
 propagates backpressure upstream and `overrun=drop` drops audio and keeps the
 pipeline running at the cost of missing words.
 
-## Performance
+### Performance
 
 Adding threads buys wall-clock speed at a worse-than-linear CPU cost, so when
 throughput is already comfortably ahead of real time, prefer more concurrent
@@ -425,40 +456,12 @@ Thread count is also not a free win: whisper tiny.en is *slower* with 8 threads
 than with the library default, because the coordination costs more than the work
 saved on a 39M model.
 
-## Model sharing
+### Model sharing
 
 Every element instance loads its own `Model` today. transcribe.cpp permits at
 most one in-flight run across all sessions of a model, so sharing one model
 between N elements would serialize their compute — separate loads are what buy
 parallelism, at the cost of N times the memory.
-
-## Debugging
-
-```bash
-GST_DEBUG=transcribecpptranscriber:6 gst-launch-1.0 ...
-```
-
-Logs model load (architecture, variant, backend, native rate, alignment
-granularity and resolved mode at INFO), each committed word as it is pushed, and
-per-run compute time against the audio consumed. On a live pipeline it warns
-when inference falls behind real time.
-
-`transcribecpplib:5` is a separate category carrying transcribe.cpp's own log
-output, which is where decoder-level detail lives:
-
-```bash
-GST_DEBUG=transcribecpptranscriber:6,transcribecpplib:5 gst-launch-1.0 ...
-```
-
-## Tests
-
-```bash
-cargo test
-```
-
-Unit tests cover the commit tracker's prefix handling, token-to-word joining,
-and the sliding-window logic — the parts where an off-by-one silently corrupts
-text rather than failing loudly. They need no model.
 
 ## Status
 

@@ -1,6 +1,6 @@
 # Build and run the RTMP listener element without installing GStreamer locally.
 #
-#   docker build -t gst-scuffle-rtmp .
+#   docker build -t gst-scuffle-rtmp -f scuffle-rtmp/Dockerfile .
 #   docker run --rm -p 1935:1935 gst-scuffle-rtmp
 #
 # Then publish to rtmp://127.0.0.1:1935/live/test from the host.
@@ -28,13 +28,16 @@ ENV PATH=/root/.cargo/bin:${PATH}
 
 WORKDIR /src
 
-# Dependencies first, so editing the element does not rebuild the world.
-COPY Cargo.toml Cargo.lock build.rs ./
-COPY vendor ./vendor
-RUN mkdir -p src && echo '' > src/lib.rs && cargo build --release --locked || true
+# Dependencies first, so editing the element does not rebuild the world. Only
+# the member manifest is shipped; dependency versions are resolved at
+# image-build time rather than pinned by the workspace lockfile, which covers
+# all four plugins and cannot be used here.
+COPY scuffle-rtmp/Cargo.toml scuffle-rtmp/build.rs ./
+COPY scuffle-rtmp/vendor ./vendor
+RUN mkdir -p src && echo '' > src/lib.rs && cargo build --release || true
 
-COPY src ./src
-RUN touch src/lib.rs && cargo build --release --locked
+COPY scuffle-rtmp/src ./src
+RUN touch src/lib.rs && cargo build --release
 
 FROM ubuntu:26.04 AS runtime
 

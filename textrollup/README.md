@@ -25,57 +25,6 @@ In the position it is meant for it replaces `textaccumulate` + `textwrap`,
 because owning the line breaking is precisely what makes the first property
 possible.
 
-## How cues are built up
-
-One buffer in, one word. One buffer out, the whole visible window. Feeding it
-`one of the things that's great about filming this here is that we get to see
-the work happening` at `columns=42 lines=2`, one word every 240 ms:
-
-```text
-00:00.000 --> 00:00.240   one
-00:00.240 --> 00:00.480   one of
-00:00.480 --> 00:00.720   one of the
-00:00.720 --> 00:00.960   one of the things
-00:00.960 --> 00:01.200   one of the things that's
-00:01.200 --> 00:01.440   one of the things that's great
-00:01.440 --> 00:01.680   one of the things that's great about     <- line is full
-00:01.680 --> 00:01.920   one of the things that's great about     <- frozen from
-                          filming                                     here on
-00:01.920 --> 00:02.160   one of the things that's great about
-                          filming this
-             (this here is that we get to, one word per cue)
-00:03.600 --> 00:03.840   one of the things that's great about
-                          filming this here is that we get to see
-00:03.840 --> 00:04.080   filming this here is that we get to see  <- scrolled up,
-                          the                                         unchanged
-00:04.080 --> 00:04.320   filming this here is that we get to see
-                          the work
-00:04.320 --> 00:04.570   filming this here is that we get to see
-                          the work happening
-```
-
-`one of the things that's great about` is decided at 00:01.440 and is
-byte-identical in every later cue until it scrolls off at 00:03.840.
-
-Each output carries the **entire** visible window as a replacement state and
-preserves the input buffer's PTS and duration exactly. Lifecycle is explicit:
-the state remains active until another state or an empty clear replaces it.
-
-### Why not wrap the text instead
-
-Because wrapping is a global decision and roll-up needs a local one. Once the
-visible text fills the window, re-wrapping means re-wrapping a *sliding*
-window, and the line breaks move. The same words, re-wrapped on each new word:
-
-```text
-was:  of the things that's great, Satya, about
-now:  that's great, Satya, about filming this
-```
-
-`filming this` has jumped from the bottom line up onto the line above. That
-happens several times a second and reads as the whole caption twitching.
-`textrollup` never re-wraps, so it cannot happen.
-
 ## Build
 
 Requires Rust 1.92+ and GStreamer 1.20 development headers.
@@ -129,13 +78,31 @@ The image builds and registers the filter without requiring a local Rust or
 GStreamer development toolchain:
 
 ```bash
-docker build -t gst-textrollup ./textrollup
+docker build -t gst-textrollup -f textrollup/Dockerfile .
 docker run --rm gst-textrollup
 ```
 
 The default command runs `gst-inspect-1.0 textrollup`. The image contains this
 filter only; speech recognition, audio fixtures, and models are intentionally
 left to the companion transcriber image or to a host pipeline.
+
+## Properties
+
+| Property | Default | Meaning |
+| --- | ---: | --- |
+| `columns` | 42 | Maximum display width per line |
+| `lines` | 2 | Number of lines in the roll-up window |
+| `clear-after` | 3000 ms | Media-time silence after the last input end before clearing; `0` disables clearing |
+| `break-on-sentence` | `true` | Finish the current line at `.`, `!`, `?`, or `…`, including trailing quotes/brackets |
+
+### Announcing the clear
+
+The empty buffer at `clear-after` is authoritative. Replacement-state
+transports such as FLV script data consume it as “stop displaying”; downstream
+packagers must not invent another timeout. Setting `clear-after=0` delegates
+the lifecycle to an explicit empty input instead.
+
+All properties are readable and writable through the PAUSED and PLAYING states.
 
 ## Window behaviour
 
@@ -172,24 +139,6 @@ Upstream should announce silence with GAP events so the clear is published
 while silence is in progress. If it does not, the first later word still emits
 the missed clear at the original media-time deadline before starting a clean
 window.
-
-## Properties
-
-| Property | Default | Meaning |
-| --- | ---: | --- |
-| `columns` | 42 | Maximum display width per line |
-| `lines` | 2 | Number of lines in the roll-up window |
-| `clear-after` | 3000 ms | Media-time silence after the last input end before clearing; `0` disables clearing |
-| `break-on-sentence` | `true` | Finish the current line at `.`, `!`, `?`, or `…`, including trailing quotes/brackets |
-
-### Announcing the clear
-
-The empty buffer at `clear-after` is authoritative. Replacement-state
-transports such as FLV script data consume it as “stop displaying”; downstream
-packagers must not invent another timeout. Setting `clear-after=0` delegates
-the lifecycle to an explicit empty input instead.
-
-All properties are readable and writable through the PAUSED and PLAYING states.
 
 ## Integration contract
 
@@ -228,6 +177,59 @@ The suite covers the pure roll-up window, a fixture oracle, immediate output,
 exact timing preservation, media-time clearing, missed GAP recovery, flush,
 zero formatter latency, multi-word buffers, punctuation/width scrolling, and
 fixation of completed lines.
+
+## Design notes
+
+### How cues are built up
+
+One buffer in, one word. One buffer out, the whole visible window. Feeding it
+`one of the things that's great about filming this here is that we get to see
+the work happening` at `columns=42 lines=2`, one word every 240 ms:
+
+```text
+00:00.000 --> 00:00.240   one
+00:00.240 --> 00:00.480   one of
+00:00.480 --> 00:00.720   one of the
+00:00.720 --> 00:00.960   one of the things
+00:00.960 --> 00:01.200   one of the things that's
+00:01.200 --> 00:01.440   one of the things that's great
+00:01.440 --> 00:01.680   one of the things that's great about     <- line is full
+00:01.680 --> 00:01.920   one of the things that's great about     <- frozen from
+                          filming                                     here on
+00:01.920 --> 00:02.160   one of the things that's great about
+                          filming this
+             (this here is that we get to, one word per cue)
+00:03.600 --> 00:03.840   one of the things that's great about
+                          filming this here is that we get to see
+00:03.840 --> 00:04.080   filming this here is that we get to see  <- scrolled up,
+                          the                                         unchanged
+00:04.080 --> 00:04.320   filming this here is that we get to see
+                          the work
+00:04.320 --> 00:04.570   filming this here is that we get to see
+                          the work happening
+```
+
+`one of the things that's great about` is decided at 00:01.440 and is
+byte-identical in every later cue until it scrolls off at 00:03.840.
+
+Each output carries the **entire** visible window as a replacement state and
+preserves the input buffer's PTS and duration exactly. Lifecycle is explicit:
+the state remains active until another state or an empty clear replaces it.
+
+### Why not wrap the text instead
+
+Because wrapping is a global decision and roll-up needs a local one. Once the
+visible text fills the window, re-wrapping means re-wrapping a *sliding*
+window, and the line breaks move. The same words, re-wrapped on each new word:
+
+```text
+was:  of the things that's great, Satya, about
+now:  that's great, Satya, about filming this
+```
+
+`filming this` has jumped from the bottom line up onto the line above. That
+happens several times a second and reads as the whole caption twitching.
+`textrollup` never re-wraps, so it cannot happen.
 
 ## Status and limitations
 

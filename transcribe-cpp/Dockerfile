@@ -1,6 +1,6 @@
 # Build the transcriber element and run it over a synthesised clip.
 #
-#   docker build -t gst-transcribe-cpp .
+#   docker build -t gst-transcribe-cpp -f transcribe-cpp/Dockerfile .
 #   docker run --rm gst-transcribe-cpp
 #
 # To transcribe your own audio instead, mount it and pass it through:
@@ -37,16 +37,18 @@ WORKDIR /src
 # `metal` is the default feature and is macOS-only, hence --no-default-features.
 #
 # Build dependencies first so editing the element does not recompile ggml, which
-# dominates this stage.
-COPY Cargo.toml Cargo.lock ./
+# dominates this stage. Only the member manifest is shipped; dependency
+# versions are resolved at image-build time rather than pinned by the
+# workspace lockfile, which covers all four plugins and cannot be used here.
+COPY transcribe-cpp/Cargo.toml ./
 RUN mkdir -p src && echo '' > src/lib.rs && \
-    cargo build --release --locked --no-default-features || true
+    cargo build --release --no-default-features || true
 
-COPY src ./src
-COPY examples ./examples
+COPY transcribe-cpp/src ./src
+COPY transcribe-cpp/examples ./examples
 RUN touch src/lib.rs && \
-    cargo build --release --locked --no-default-features && \
-    cargo build --release --locked --no-default-features --example transcribe
+    cargo build --release --no-default-features && \
+    cargo build --release --no-default-features --example transcribe
 
 FROM ubuntu:26.04 AS runtime
 

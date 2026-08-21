@@ -50,22 +50,41 @@ ffmpeg -re -i input.mp4 -t 10 -map 0:v:0 -map 0:a:0 -c copy -f flv rtmp://127.0.
 If you would rather not install GStreamer locally:
 
 ```bash
-docker build -t gst-scuffle-rtmp ./scuffle-rtmp && docker run --rm -p 1935:1935 gst-scuffle-rtmp
+docker build -t gst-scuffle-rtmp -f scuffle-rtmp/Dockerfile . &&
+  docker run --rm -p 1935:1935 gst-scuffle-rtmp
 ```
 
 That runs the listener pipeline on port 1935; publish to
 `rtmp://127.0.0.1:1935/live/test` from the host.
 
+## Properties
+
+| Property | Default | Meaning |
+| --- | --- | --- |
+| `address`, `port` | `0.0.0.0`, `1935` | Listen endpoint |
+| `application`, `stream-key` | unset | Require exact matches for the two path components in `rtmp://host/application/stream-key`. A mismatch closes the connection and fails the pipeline |
+| `tcp-nodelay` | `true` | `TCP_NODELAY` on the accepted connection |
+| `accept-timeout` | 0 | Nanoseconds to wait for a publisher; 0 waits indefinitely |
+| `handshake-timeout` | 10s | Per-handshake-read timeout in nanoseconds; 0 disables |
+| `read-timeout` | disabled | Per-read timeout in nanoseconds; 0 disables |
+| `write-timeout` | 10s | Per-write timeout in nanoseconds; 0 disables |
+| `keep-listening` | `false` | Wait for another publisher after disconnect instead of returning EOS |
+
 ## Behaviour
 
-The listener is deliberately **one-shot**. It binds when the element starts,
-accepts the first publisher, closes the listening socket, and keeps that session
-attached until unpublish, disconnect, failure, or pipeline shutdown. Starting
-the pipeline again creates a new listener.
+By default, the listener accepts one publisher and emits EOS after a clean
+unpublish or publisher connection close. A close without unpublishing is logged
+as a warning but still becomes EOS, so downstream queues and muxers can drain
+rather than hang.
 
-It emits EOS after a clean unpublish or a publisher connection close. A close
-without unpublishing is logged as a warning but still becomes EOS, so downstream
-queues and muxers can drain rather than hang.
+With `keep-listening=true`, the listener keeps its TCP socket open after the
+publisher disconnects and waits for another publisher. It emits no buffers or
+GAP events during the outage, and posts an element bus message named
+`connection-removed`. Buffers resume when the next publisher connects; the first
+resumed buffer is marked `DISCONT`. The FLV header is emitted once per element
+activation, so reconnects continue the same FLV byte stream without another
+container header. If the resumed publisher changes between audio/video track
+combinations, the element logs a warning but leaves the stream running.
 
 ## Enhanced RTMP and multitrack
 
@@ -92,18 +111,6 @@ H.264/AAC — HEVC, AV1, Opus and the rest of the Enhanced RTMP set — is a
 question of what your `flvdemux` and decoders handle, not of this element.
 
 [Enhanced RTMP]: https://github.com/veovera/enhanced-rtmp
-
-## Properties
-
-| Property | Default | Meaning |
-| --- | --- | --- |
-| `address`, `port` | `0.0.0.0`, `1935` | Listen endpoint |
-| `application`, `stream-key` | unset | Require exact matches for the two path components in `rtmp://host/application/stream-key`. A mismatch closes the connection and fails the pipeline |
-| `tcp-nodelay` | `true` | `TCP_NODELAY` on the accepted connection |
-| `accept-timeout` | 0 | Nanoseconds to wait for a publisher; 0 waits indefinitely |
-| `handshake-timeout` | 10s | Per-handshake-read timeout in nanoseconds; 0 disables |
-| `read-timeout` | disabled | Per-read timeout in nanoseconds; 0 disables |
-| `write-timeout` | 10s | Per-write timeout in nanoseconds; 0 disables |
 
 ## Buffering
 
@@ -140,10 +147,12 @@ fixture; set `FIXTURE=/path/to.mp4` to use real footage instead, and `PORT_BASE`
 to move off the default five-port range.
 
 It covers publisher accept timeout, stream-key rejection, clean A/V remux and
-EOS, abrupt-disconnect EOS draining, and three-video-track plus audio
-multiplexing.
+EOS, abrupt-disconnect EOS draining, keep-listening reconnects, and
+three-video-track plus audio multiplexing.
 
-## Vendored dependency
+## Design notes
+
+### Vendored dependency
 
 `vendor/scuffle-rtmp` is [scuffle-rtmp] 0.2.3 as published to crates.io, with
 local changes. Upstream hardcodes its network timeouts and does not expose the
