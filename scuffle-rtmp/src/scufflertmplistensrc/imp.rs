@@ -95,7 +95,7 @@ pub struct ScuffleRtmpListenSrc {
   settings: Mutex<Settings>,
   state: Mutex<State>,
   flushing: AtomicBool,
-  discontinuity_pending: AtomicBool,
+  new_stream_pending: AtomicBool,
 }
 
 #[glib::object_subclass]
@@ -376,7 +376,7 @@ impl BaseSrcImpl for ScuffleRtmpListenSrc {
     }
 
     self.flushing.store(false, Ordering::Release);
-    self.discontinuity_pending.store(false, Ordering::Release);
+    self.new_stream_pending.store(false, Ordering::Release);
 
     if settings.port == 0 {
       self.settings.lock().expect("settings mutex poisoned").port = local_port;
@@ -397,7 +397,7 @@ impl BaseSrcImpl for ScuffleRtmpListenSrc {
   fn stop(&self) -> Result<(), gst::ErrorMessage> {
     gst::info!(CAT, imp = self, "Stopping RTMP listener");
     self.flushing.store(true, Ordering::Release);
-    self.discontinuity_pending.store(false, Ordering::Release);
+    self.new_stream_pending.store(false, Ordering::Release);
 
     let (sender, cancellation, worker) = {
       let mut state = self.state.lock().expect("state mutex poisoned");
@@ -467,13 +467,25 @@ impl PushSrcImpl for ScuffleRtmpListenSrc {
 
       match receiver.recv_timeout(CREATE_POLL_INTERVAL) {
         Ok(WorkerOutput::Data(data)) => {
-          let mut buffer = gst::Buffer::from_mut_slice(data);
-          if self.discontinuity_pending.swap(false, Ordering::AcqRel) {
-            buffer
-              .get_mut()
-              .expect("new buffer is uniquely owned")
-              .set_flags(gst::BufferFlags::DISCONT);
+          if self.new_stream_pending.swap(false, Ordering::AcqRel) {
+            // Breaking conformant change: each reconnect (keep-listening) is a new GStreamer stream.
+            // More conformant BaseSrc should, per GstBaseSrc docs, issue per-stream STREAM_START(group_id=new)+CAPS+SEGMENT before data. :codex-annotation{index="1"}
+            let src = self.obj();
+            if let Some(pad) = src.static_pad("src") {
+              let stream_id = pad.create_stream_id(&*src, Some("rtmp"));
+              let group_id = gst::GroupId::next();
+              let caps = gst::Caps::builder("video/x-flv").build();
+              let _ = src.set_caps(&caps);
+              let stream_start = gst::event::StreamStart::builder(&stream_id)
+                .group_id(group_id)
+                .build();
+              let _ = pad.push_event(stream_start);
+              let _ = pad.push_event(gst::event::Caps::new(&caps));
+              let segment = gst::FormattedSegment::<gst::format::Bytes>::new();
+              let _ = pad.push_event(gst::event::Segment::new(&segment));
+            }
           }
+          let buffer = gst::Buffer::from_mut_slice(data);
           return Ok(CreateSuccess::NewBuffer(buffer));
         }
         Ok(WorkerOutput::Warning(warning)) => {
@@ -481,7 +493,7 @@ impl PushSrcImpl for ScuffleRtmpListenSrc {
         }
         Ok(WorkerOutput::Eos) => return Err(gst::FlowError::Eos),
         Ok(WorkerOutput::ConnectionRemoved) => {
-          self.discontinuity_pending.store(true, Ordering::Release);
+          self.new_stream_pending.store(true, Ordering::Release);
           let message =
             gst::message::Element::new(gst::Structure::builder("connection-removed").build());
           let _ = self.obj().post_message(message);
