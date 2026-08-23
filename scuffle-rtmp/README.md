@@ -85,6 +85,16 @@ resumed buffer is marked `DISCONT`. Each publisher session emits one FLV header,
 including after a reconnect. A publisher with a mismatched
 application or stream key is rejected without stopping the listener.
 
+Publisher lifecycle is also available in-band on the source pad as serialized,
+non-sticky `CUSTOM_DOWNSTREAM` events. For each accepted publisher, the source
+pushes `scufflertmp-publish-start` immediately before its first FLV buffer and
+`scufflertmp-publish-end` immediately after its final FLV buffer. Both events
+contain a `connection-id` field (`uint64`). The end event also contains a
+`reason` field: `unpublished`, `disconnect`, or `error`. On reconnect, the
+normal new-stream `STREAM_START`, `CAPS`, and `SEGMENT` events precede the next
+`scufflertmp-publish-start`; the lifecycle events are not sticky and are never
+replayed to a later downstream connection.
+
 ## Enhanced RTMP and multitrack
 
 The underlying session implements [Enhanced RTMP] v2, including the multitrack
@@ -147,7 +157,8 @@ to move off the default five-port range.
 
 It covers publisher accept timeout, stream-key rejection, clean A/V remux and
 EOS, abrupt-disconnect EOS draining, keep-listening reconnects, and
-three-video-track plus audio multiplexing.
+serialized publisher lifecycle event ordering, and three-video-track plus audio
+multiplexing.
 
 ## Design notes
 

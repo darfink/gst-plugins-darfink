@@ -1,6 +1,6 @@
 use std::io;
 use std::net::{IpAddr, SocketAddr, TcpListener};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -33,6 +33,8 @@ const FLV_TAG_AUDIO: u8 = 8;
 const FLV_TAG_VIDEO: u8 = 9;
 const FLV_TAG_SCRIPT_DATA: u8 = 18;
 const FLV_HEADER: &[u8] = b"FLV\x01\x05\x00\x00\x00\x09\x00\x00\x00\x00";
+const PUBLISH_START_EVENT: &str = "scufflertmp-publish-start";
+const PUBLISH_END_EVENT: &str = "scufflertmp-publish-end";
 
 static CAT: LazyLock<gst::DebugCategory> = LazyLock::new(|| {
   gst::DebugCategory::new(
@@ -75,10 +77,11 @@ impl Default for Settings {
 
 enum WorkerOutput {
   Data(Vec<u8>),
+  PublishStarted { connection_id: u64 },
+  PublishEnded { connection_id: u64, reason: String },
   Warning(String),
   Error(String),
   Eos,
-  ConnectionRemoved,
   Wake,
 }
 
@@ -459,6 +462,7 @@ impl PushSrcImpl for ScuffleRtmpListenSrc {
       .receiver
       .clone()
       .ok_or(gst::FlowError::Flushing)?;
+    let mut pending_publish_start = None;
 
     loop {
       if self.flushing.load(Ordering::Acquire) {
@@ -466,10 +470,15 @@ impl PushSrcImpl for ScuffleRtmpListenSrc {
       }
 
       match receiver.recv_timeout(CREATE_POLL_INTERVAL) {
+        Ok(WorkerOutput::PublishStarted { connection_id }) => {
+          pending_publish_start = Some(connection_id);
+        }
         Ok(WorkerOutput::Data(data)) => {
           if self.new_stream_pending.swap(false, Ordering::AcqRel) {
-            // Breaking conformant change: each reconnect (keep-listening) is a new GStreamer stream.
-            // More conformant BaseSrc should, per GstBaseSrc docs, issue per-stream STREAM_START(group_id=new)+CAPS+SEGMENT before data. :codex-annotation{index="1"}
+            // Each reconnect (keep-listening) starts a new GStreamer stream
+            // generation. The publisher lifecycle event follows the normal
+            // STREAM_START/CAPS/SEGMENT sequence and precedes the first FLV
+            // buffer of that generation.
             let src = self.obj();
             if let Some(pad) = src.static_pad("src") {
               let stream_id = pad.create_stream_id(&*src, Some("rtmp"));
@@ -485,6 +494,12 @@ impl PushSrcImpl for ScuffleRtmpListenSrc {
               let _ = pad.push_event(gst::event::Segment::new(&segment));
             }
           }
+          if let Some(connection_id) = pending_publish_start.take() {
+            let src = self.obj();
+            if let Some(pad) = src.static_pad("src") {
+              let _ = pad.push_event(publish_event(PUBLISH_START_EVENT, connection_id, None));
+            }
+          }
           let buffer = gst::Buffer::from_mut_slice(data);
           return Ok(CreateSuccess::NewBuffer(buffer));
         }
@@ -492,10 +507,24 @@ impl PushSrcImpl for ScuffleRtmpListenSrc {
           gst::element_imp_warning!(self, gst::ResourceError::Read, ["{warning}"]);
         }
         Ok(WorkerOutput::Eos) => return Err(gst::FlowError::Eos),
-        Ok(WorkerOutput::ConnectionRemoved) => {
+        Ok(WorkerOutput::PublishEnded {
+          connection_id,
+          reason,
+        }) => {
           self.new_stream_pending.store(true, Ordering::Release);
-          let message =
-            gst::message::Element::new(gst::Structure::builder("connection-removed").build());
+          if let Some(pad) = self.obj().static_pad("src") {
+            let _ = pad.push_event(publish_event(
+              PUBLISH_END_EVENT,
+              connection_id,
+              Some(&reason),
+            ));
+          }
+          let message = gst::message::Element::new(
+            gst::Structure::builder("connection-removed")
+              .field("connection-id", connection_id)
+              .field("reason", reason)
+              .build(),
+          );
           let _ = self.obj().post_message(message);
         }
         Ok(WorkerOutput::Error(error)) => {
@@ -548,6 +577,8 @@ fn run_worker(
       return;
     }
 
+    let next_connection_id = Arc::new(AtomicU64::new(1));
+
     loop {
       let accept = async {
         if settings.accept_timeout == 0 {
@@ -593,6 +624,7 @@ fn run_worker(
       );
 
       let rejected = Arc::new(AtomicBool::new(false));
+      let connection_id = Arc::new(AtomicU64::new(0));
       let handler = RtmpHandler::new(
         output.clone(),
         cancellation.clone(),
@@ -600,6 +632,8 @@ fn run_worker(
         settings.stream_key.clone(),
         settings.keep_listening,
         rejected.clone(),
+        next_connection_id.clone(),
+        connection_id.clone(),
       );
       let session = ServerSession::new(stream, handler).with_timeouts(ServerSessionTimeouts {
         handshake_read: nanoseconds_timeout(settings.handshake_timeout),
@@ -616,19 +650,27 @@ fn run_worker(
         continue;
       }
 
+      let connection_id = connection_id.load(Ordering::Acquire);
       match result {
         Ok(true) => {
           gst::info!(CAT, "RTMP publisher completed cleanly");
+          if connection_id != 0
+            && !send_publish_end(&output, &cancellation, connection_id, "unpublished").await
+          {
+            return;
+          }
           if settings.keep_listening {
-            if !send_output(&output, &cancellation, WorkerOutput::ConnectionRemoved).await {
-              return;
-            }
             continue;
           }
           send_output(&output, &cancellation, WorkerOutput::Eos).await;
           return;
         }
         Ok(false) => {
+          if connection_id != 0
+            && !send_publish_end(&output, &cancellation, connection_id, "disconnect").await
+          {
+            return;
+          }
           if !send_output(
             &output,
             &cancellation,
@@ -639,20 +681,30 @@ fn run_worker(
             return;
           }
           if settings.keep_listening {
-            if !send_output(&output, &cancellation, WorkerOutput::ConnectionRemoved).await {
-              return;
-            }
             continue;
           }
           send_output(&output, &cancellation, WorkerOutput::Eos).await;
           return;
         }
         Err(error) => {
-          if settings.keep_listening && is_client_disconnect(&error) {
+          let client_disconnect = is_client_disconnect(&error);
+          if connection_id != 0
+            && !send_publish_end(
+              &output,
+              &cancellation,
+              connection_id,
+              if client_disconnect {
+                "disconnect"
+              } else {
+                "error"
+              },
+            )
+            .await
+          {
+            return;
+          }
+          if settings.keep_listening && client_disconnect {
             gst::warning!(CAT, "RTMP publisher disconnected abruptly: {error}");
-            if !send_output(&output, &cancellation, WorkerOutput::ConnectionRemoved).await {
-              return;
-            }
             continue;
           }
           gst::warning!(CAT, "RTMP session failed: {error}");
@@ -699,6 +751,8 @@ struct RtmpHandler {
   stream_key: Option<String>,
   keep_listening: bool,
   rejected: Arc<AtomicBool>,
+  next_connection_id: Arc<AtomicU64>,
+  connection_id: Arc<AtomicU64>,
   header_sent: bool,
 }
 
@@ -710,6 +764,8 @@ impl RtmpHandler {
     stream_key: Option<String>,
     keep_listening: bool,
     rejected: Arc<AtomicBool>,
+    next_connection_id: Arc<AtomicU64>,
+    connection_id: Arc<AtomicU64>,
   ) -> Self {
     Self {
       output,
@@ -718,6 +774,8 @@ impl RtmpHandler {
       stream_key,
       keep_listening,
       rejected,
+      next_connection_id,
+      connection_id,
       header_sent: false,
     }
   }
@@ -776,6 +834,17 @@ impl SessionHandler for RtmpHandler {
       CAT,
       "Accepted RTMP publish for app '{app_name}', stream id {stream_id}"
     );
+    let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
+    self.connection_id.store(connection_id, Ordering::Release);
+    if !send_output(
+      &self.output,
+      &self.cancellation,
+      WorkerOutput::PublishStarted { connection_id },
+    )
+    .await
+    {
+      return Ok(());
+    }
     self.ensure_header().await;
     Ok(())
   }
@@ -828,6 +897,33 @@ async fn send_output(
     _ = cancellation.cancelled() => false,
     result = sender.send_async(output) => result.is_ok(),
   }
+}
+
+async fn send_publish_end(
+  output: &flume::Sender<WorkerOutput>,
+  cancellation: &CancellationToken,
+  connection_id: u64,
+  reason: &str,
+) -> bool {
+  send_output(
+    output,
+    cancellation,
+    WorkerOutput::PublishEnded {
+      connection_id,
+      reason: reason.into(),
+    },
+  )
+  .await
+}
+
+fn publish_event(name: &str, connection_id: u64, reason: Option<&str>) -> gst::Event {
+  let structure = gst::Structure::builder(name).field("connection-id", connection_id);
+  let structure = if let Some(reason) = reason {
+    structure.field("reason", reason).build()
+  } else {
+    structure.build()
+  };
+  gst::event::CustomDownstream::builder(structure).build()
 }
 
 fn frame_flv_tag(tag_type: u8, timestamp: u32, payload: &[u8]) -> io::Result<Vec<u8>> {
