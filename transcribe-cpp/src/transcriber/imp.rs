@@ -1100,14 +1100,32 @@ impl Transcriber {
                 gst::Pad::event_default(pad, Some(&*self.obj()), event)
             }
             Gap(gap) => {
-                let _ = self.finalize();
-                let _ = self.restart(false);
-
                 let (pts, duration) = gap.get();
-                self.state.lock().unwrap().out_pts =
-                    Some(pts + duration.unwrap_or(gst::ClockTime::ZERO));
+                let seqnum = event.seqnum();
+                let running_time_offset = event.running_time_offset();
 
-                gst::Pad::event_default(pad, Some(&*self.obj()), event)
+                // Finalization can publish text or silence beyond the input
+                // GAP's start. Forwarding that GAP unchanged would overlap the
+                // coverage we just emitted, which strict sparse-stream
+                // aggregators must reject. Preserve only the still-uncovered
+                // tail and seed the restarted stream at the furthest point
+                // covered by either side.
+                let _ = self.finalize();
+                let finalized_frontier = self.state.lock().unwrap().out_pts;
+                let plan = plan_gap_after_finalize(pts, duration, finalized_frontier);
+                let _ = self.restart(false);
+                self.state.lock().unwrap().out_pts = Some(plan.frontier);
+
+                let Some((pts, duration)) = plan.gap else {
+                    return true;
+                };
+                let mut builder = gst::event::Gap::builder(pts)
+                    .seqnum(seqnum)
+                    .running_time_offset(running_time_offset);
+                if let Some(duration) = duration {
+                    builder = builder.duration(duration);
+                }
+                self.srcpad.push_event(builder.build())
             }
             _ => gst::Pad::event_default(pad, Some(&*self.obj()), event),
         }
@@ -1325,6 +1343,38 @@ fn forward_discontinuity_gap(
         Some((frontier, next_pts - frontier))
     } else {
         None
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct GapPlan {
+    /// Furthest text time covered after applying both finalization and the
+    /// incoming GAP. This becomes the restarted stream's output frontier.
+    frontier: gst::ClockTime,
+    /// The portion of the incoming GAP not already covered by finalization.
+    gap: Option<(gst::ClockTime, Option<gst::ClockTime>)>,
+}
+
+/// Trim an input GAP against coverage emitted while finalizing the old model.
+fn plan_gap_after_finalize(
+    start: gst::ClockTime,
+    duration: Option<gst::ClockTime>,
+    finalized_frontier: Option<gst::ClockTime>,
+) -> GapPlan {
+    let uncovered_start = finalized_frontier.map_or(start, |frontier| frontier.max(start));
+
+    match duration {
+        Some(duration) => {
+            let end = start + duration;
+            let frontier = finalized_frontier.map_or(end, |frontier| frontier.max(end));
+            let gap =
+                (end > uncovered_start).then(|| (uncovered_start, Some(end - uncovered_start)));
+            GapPlan { frontier, gap }
+        }
+        None => GapPlan {
+            frontier: uncovered_start,
+            gap: Some((uncovered_start, None)),
+        },
     }
 }
 
@@ -1911,6 +1961,54 @@ mod tests {
         let frontier = ms(2_000);
         assert_eq!(forward_discontinuity_gap(frontier, frontier), None);
         assert_eq!(forward_discontinuity_gap(frontier, ms(1_000)), None);
+    }
+
+    #[test]
+    fn a_gap_overlapping_finalized_text_is_trimmed_to_the_frontier() {
+        let start = gst::ClockTime::from_nseconds(41_679_375_000);
+        let finalized = gst::ClockTime::from_nseconds(41_727_000_000);
+        let end = ms(42_000);
+
+        assert_eq!(
+            plan_gap_after_finalize(start, Some(end - start), Some(finalized)),
+            GapPlan {
+                frontier: end,
+                gap: Some((finalized, Some(end - finalized))),
+            }
+        );
+    }
+
+    #[test]
+    fn a_gap_already_covered_by_finalization_is_suppressed() {
+        assert_eq!(
+            plan_gap_after_finalize(ms(1_000), Some(ms(500)), Some(ms(2_000))),
+            GapPlan {
+                frontier: ms(2_000),
+                gap: None,
+            }
+        );
+    }
+
+    #[test]
+    fn a_forward_gap_is_preserved_and_advances_the_restarted_frontier() {
+        assert_eq!(
+            plan_gap_after_finalize(ms(2_000), Some(ms(500)), Some(ms(1_500))),
+            GapPlan {
+                frontier: ms(2_500),
+                gap: Some((ms(2_000), Some(ms(500)))),
+            }
+        );
+    }
+
+    #[test]
+    fn an_open_ended_gap_starts_after_finalized_coverage() {
+        assert_eq!(
+            plan_gap_after_finalize(ms(1_000), None, Some(ms(1_250))),
+            GapPlan {
+                frontier: ms(1_250),
+                gap: Some((ms(1_250), None)),
+            }
+        );
     }
 
     fn ms(value: u64) -> gst::ClockTime {
