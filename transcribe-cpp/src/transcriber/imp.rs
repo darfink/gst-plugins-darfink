@@ -646,6 +646,47 @@ impl Transcriber {
             .push_event(gst::event::Gap::builder(gap.0).duration(gap.1).build());
     }
 
+    /// Cover a forward jump before rebasing the model stream.
+    ///
+    /// `finalize` closes the old model through the last audio it consumed.
+    /// The interval between that frontier and the next input PTS contains no
+    /// audio and therefore no possible text, but it still needs an explicit
+    /// GAP for strict sparse-stream aggregators. Unlike ordinary progress,
+    /// this is never coalesced: even a short discontinuity is real coverage.
+    fn bridge_forward_discontinuity(&self, next_pts: gst::ClockTime) {
+        let gap = {
+            let mut state = self.state.lock().unwrap();
+
+            if state
+                .info
+                .as_ref()
+                .is_some_and(|info| info.max_timestamp_kind == "none")
+            {
+                return;
+            }
+
+            let Some(frontier) = state.out_pts else {
+                return;
+            };
+            let Some((pts, duration)) = forward_discontinuity_gap(frontier, next_pts) else {
+                return;
+            };
+            state.out_pts = Some(next_pts);
+            (pts, duration)
+        };
+
+        gst::trace!(
+            CAT,
+            imp = self,
+            "discontinuity gap at {} for {}",
+            gap.0,
+            gap.1
+        );
+        let _ = self
+            .srcpad
+            .push_event(gst::event::Gap::builder(gap.0).duration(gap.1).build());
+    }
+
     /// Tell downstream that the transcript up to here will not change.
     ///
     /// This is the `rstranscribe/final-transcript` convention the gst-plugins-rs
@@ -865,6 +906,7 @@ impl Transcriber {
         if discont {
             gst::debug!(CAT, imp = self, "discontinuity at {pts}");
             self.finalize()?;
+            self.bridge_forward_discontinuity(pts);
             self.restart(false)?;
         }
 
@@ -1272,6 +1314,18 @@ fn gate_opening_gap(
     frontier
         .filter(|frontier| first_speech > *frontier)
         .map(|frontier| (frontier, first_speech - frontier))
+}
+
+/// The text coverage required between a drained stream and the next input.
+fn forward_discontinuity_gap(
+    frontier: gst::ClockTime,
+    next_pts: gst::ClockTime,
+) -> Option<(gst::ClockTime, gst::ClockTime)> {
+    if next_pts > frontier {
+        Some((frontier, next_pts - frontier))
+    } else {
+        None
+    }
 }
 
 /// Whether this word closes a sentence.
@@ -1840,6 +1894,23 @@ mod tests {
         );
         assert_eq!(gate_opening_gap(Some(first_speech), first_speech), None);
         assert_eq!(gate_opening_gap(None, first_speech), None);
+    }
+
+    #[test]
+    fn a_forward_discontinuity_covers_the_physical_input_hole() {
+        let drained = gst::ClockTime::from_nseconds(53_990_437_500);
+        let next = gst::ClockTime::from_nseconds(54_031_375_000);
+        assert_eq!(
+            forward_discontinuity_gap(drained, next),
+            Some((drained, gst::ClockTime::from_nseconds(40_937_500)))
+        );
+    }
+
+    #[test]
+    fn contiguous_and_backward_discontinuities_do_not_invent_coverage() {
+        let frontier = ms(2_000);
+        assert_eq!(forward_discontinuity_gap(frontier, frontier), None);
+        assert_eq!(forward_discontinuity_gap(frontier, ms(1_000)), None);
     }
 
     fn ms(value: u64) -> gst::ClockTime {

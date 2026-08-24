@@ -111,6 +111,30 @@ pub struct Handle {
     join: Option<std::thread::JoinHandle<()>>,
 }
 
+/// Publish a drained stream in timeline order.
+///
+/// Final words have to precede the final frontier: once downstream receives
+/// the progress event it is entitled to treat every earlier instant as
+/// decided silence. Conversely, omitting that frontier strands the model's
+/// commit holdback whenever a discontinuity restarts the stream before EOS.
+fn send_final_output(
+    ev_tx: &mpsc::Sender<Ev>,
+    words: Vec<TimedWord>,
+    drained_ms: i64,
+) -> Result<(), ()> {
+    ev_tx
+        .send(Ev::Words {
+            words,
+            is_final: true,
+        })
+        .map_err(|_| ())?;
+    ev_tx
+        .send(Ev::Progress {
+            committed_ms: drained_ms,
+        })
+        .map_err(|_| ())
+}
+
 impl Handle {
     /// Stop the worker and wait for it. Cancels any in-flight compute first,
     /// so this does not block for the length of an inference run.
@@ -373,10 +397,9 @@ fn run_streaming(
                                 &commit::units(&snapshot),
                                 drained_ms,
                             );
-                            let _ = ev_tx.send(Ev::Words {
-                                words,
-                                is_final: true,
-                            });
+                            if send_final_output(ev_tx, words, drained_ms).is_err() {
+                                return Ok(());
+                            }
                         }
                         Err(Error::Aborted { .. }) => (),
                         Err(err) => return Err(format!("finalize failed: {err}")),
@@ -649,11 +672,11 @@ fn run_chunked(
                     Err(Some(err)) => return Err(err),
                     Err(None) => Vec::new(),
                 };
-                let _ = ev_tx.send(Ev::Words {
-                    words,
-                    is_final: true,
-                });
-                window.clear(window.end_ms());
+                let drained_ms = window.end_ms();
+                if send_final_output(ev_tx, words, drained_ms).is_err() {
+                    return Ok(());
+                }
+                window.clear(drained_ms);
                 if ev_tx.send(Ev::Drained).is_err() {
                     return Ok(());
                 }
@@ -716,6 +739,28 @@ mod tests {
             rate,
             max_ms: DEFAULT_MAX_WINDOW_MS,
         }
+    }
+
+    #[test]
+    fn final_output_closes_silence_before_the_drain_marker() {
+        let (tx, rx) = mpsc::channel();
+        send_final_output(&tx, Vec::new(), 53_990).unwrap();
+        tx.send(Ev::Drained).unwrap();
+
+        assert!(matches!(
+            rx.recv().unwrap(),
+            Ev::Words {
+                words,
+                is_final: true,
+            } if words.is_empty()
+        ));
+        assert!(matches!(
+            rx.recv().unwrap(),
+            Ev::Progress {
+                committed_ms: 53_990,
+            }
+        ));
+        assert!(matches!(rx.recv().unwrap(), Ev::Drained));
     }
 
     fn push_silence(w: &mut Window, ms: i64) {
