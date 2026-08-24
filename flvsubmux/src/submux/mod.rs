@@ -6,14 +6,15 @@ use gst::prelude::*;
 mod imp;
 
 glib::wrapper! {
-    pub struct FlvSubInject(ObjectSubclass<imp::FlvSubInject>) @extends gst::Element, gst::Object;
+  pub struct FlvSubMux(ObjectSubclass<imp::FlvSubMux>)
+    @extends gst_base::Aggregator, gst::Element, gst::Object;
 }
 
 pub fn register(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
   gst::Element::register(
     Some(plugin),
-    "flvsubinject",
+    "flvsubmux",
     gst::Rank::NONE,
-    FlvSubInject::static_type(),
+    FlvSubMux::static_type(),
   )
 }

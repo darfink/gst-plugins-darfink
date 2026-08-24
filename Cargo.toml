@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
-    "flvsubinject",
+    "flvsubmux",
     "textrollup",
     "transcribe-cpp",
     "scuffle-rtmp",

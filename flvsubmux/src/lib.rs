@@ -1,23 +1,22 @@
 // SPDX-License-Identifier: MPL-2.0
 
-//! GStreamer element that injects FLV script-data subtitle tags into a muxed
-//! FLV stream.
+//! Strict, GAP-driven FLV subtitle aggregation.
 
 #![allow(clippy::non_send_fields_in_send_ty, unused_doc_comments)]
 
 use gst::glib;
 
-pub mod amf;
+mod amf;
+mod caption;
 pub mod flv;
-pub mod subinject;
+mod submux;
 
 fn plugin_init(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
-  subinject::register(plugin)?;
-  Ok(())
+  submux::register(plugin)
 }
 
 gst::plugin_define!(
-  flvsubinject,
+  flvsubmux,
   env!("CARGO_PKG_DESCRIPTION"),
   plugin_init,
   env!("CARGO_PKG_VERSION"),
@@ -25,5 +24,5 @@ gst::plugin_define!(
   env!("CARGO_PKG_NAME"),
   env!("CARGO_PKG_NAME"),
   env!("CARGO_PKG_REPOSITORY"),
-  "2026-08-11"
+  "2026-08-24"
 );

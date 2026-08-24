@@ -33,6 +33,16 @@ mod handler;
 pub use error::ServerSessionError;
 pub use handler::{SessionData, SessionHandler};
 
+/// How a server session should react when its owner shuts down.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServerSessionShutdown {
+    /// Drop the session immediately without sending an RTMP shutdown message.
+    Abrupt,
+    /// Send the server-side connection-closed status and wait for the client
+    /// to close, up to the supplied timeout.
+    Graceful(Duration),
+}
+
 // The default acknowledgement window size that is used until the client sends a
 // new acknowledgement window size.
 // This is a common value used by other media servers as well.
@@ -149,18 +159,41 @@ impl<S, H> ServerSession<S, H> {
 }
 
 impl<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin, H: SessionHandler> ServerSession<S, H> {
-    /// Run the session to completion
+    /// Run the session to completion.
+    ///
     /// The result of the return value will be true if all publishers have
-    /// disconnected If any publishers are still connected, the result will be
-    /// false This can be used to detect non-graceful disconnects (ie. the
-    /// client crashed)
-    pub async fn run(mut self) -> Result<bool, crate::error::RtmpError> {
+    /// disconnected. If any publishers are still connected, the result will
+    /// be false. This can be used to detect non-graceful disconnects (ie. the
+    /// client crashed).
+    pub async fn run(self) -> Result<bool, crate::error::RtmpError> {
+        self.run_with_shutdown(std::future::pending()).await
+    }
+
+    /// Run the session while listening for an owner shutdown request.
+    ///
+    /// An abrupt request returns immediately and drops the connection. A
+    /// graceful request sends `NetConnection.Connect.Closed`, flushes it, and
+    /// continues driving the session until the client closes or the timeout
+    /// expires.
+    pub async fn run_with_shutdown<F>(mut self, shutdown: F) -> Result<bool, crate::error::RtmpError>
+    where
+        F: Future<Output = ServerSessionShutdown>,
+    {
         let ctx = self.ctx.clone().unwrap_or_else(scuffle_context::Context::global);
+        tokio::pin!(shutdown);
 
         let mut handshaker = HandshakeServer::default();
         // Run the handshake to completion
         loop {
-            match self.drive_handshake(&mut handshaker).with_context(&ctx).await {
+            let handshake_result = {
+                let handshake = self.drive_handshake(&mut handshaker).with_context(&ctx);
+                tokio::pin!(handshake);
+                tokio::select! {
+                    shutdown = &mut shutdown => return Ok(matches!(shutdown, ServerSessionShutdown::Abrupt)),
+                    result = &mut handshake => result,
+                }
+            };
+            match handshake_result {
                 Some(Ok(false)) => self.flush().await?, // Continue driving
                 Some(Ok(true)) => break,                // Handshake is complete
                 Some(Err(e)) => return Err(e),
@@ -176,7 +209,10 @@ impl<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin, H: SessionHandler>
 
         // Drive the session to completion
         loop {
-            match self.drive().await {
+            match tokio::select! {
+                shutdown = &mut shutdown => return self.handle_shutdown(shutdown).await,
+                result = self.drive() => result,
+            } {
                 Ok(true) => self.flush().await?, // Continue driving
                 Ok(false) => break,              // Client has closed the connection
                 Err(err) if err.is_client_closed() => {
@@ -194,6 +230,46 @@ impl<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin, H: SessionHandler>
         // streams (play streams) So we just check that all publishers have disconnected
         // cleanly
         Ok(self.publishing_stream_ids.is_empty())
+    }
+
+    async fn handle_shutdown(&mut self, shutdown: ServerSessionShutdown) -> Result<bool, crate::error::RtmpError> {
+        match shutdown {
+            ServerSessionShutdown::Abrupt => Ok(false),
+            ServerSessionShutdown::Graceful(timeout) => {
+                self.send_connection_closed().await?;
+
+                let deadline = tokio::time::sleep(timeout);
+                tokio::pin!(deadline);
+                loop {
+                    match tokio::select! {
+                        _ = &mut deadline => break,
+                        result = self.drive() => result,
+                    } {
+                        Ok(true) => self.flush().await?,
+                        Ok(false) => break,
+                        Err(error) if error.is_client_closed() => break,
+                        Err(error) => return Err(error),
+                    }
+                }
+
+                Ok(false)
+            }
+        }
+    }
+
+    async fn send_connection_closed(&mut self) -> Result<(), crate::error::RtmpError> {
+        Command {
+            command_type: CommandType::OnStatus(OnStatus {
+                level: CommandResultLevel::Status,
+                code: OnStatusCode::NET_CONNECTION_CONNECT_CLOSED,
+                description: Some("The server is shutting down.".into()),
+                others: None,
+            }),
+            transaction_id: 0.0,
+        }
+        .write(&mut self.write_buf, &self.chunk_writer, 0)?;
+
+        self.flush().await
     }
 
     /// This drives the first stage of the session.
@@ -624,6 +700,26 @@ mod tests {
     fn session() -> ServerSession<tokio::io::DuplexStream, Handler> {
         let (server, _client) = tokio::io::duplex(64);
         ServerSession::new(server, Handler)
+    }
+
+    #[tokio::test]
+    async fn graceful_shutdown_sends_connection_closed_status() {
+        let (server, mut client) = tokio::io::duplex(4096);
+        let mut session = ServerSession::new(server, Handler);
+        session.publishing_stream_ids.push(1);
+
+        session
+            .send_connection_closed()
+            .await
+            .expect("connection-closed status");
+
+        let mut wire = vec![0; 4096];
+        let length = tokio::io::AsyncReadExt::read(&mut client, &mut wire)
+            .await
+            .expect("read connection-closed status");
+        assert!(wire[..length]
+            .windows(b"NetConnection.Connect.Closed".len())
+            .any(|window| window == b"NetConnection.Connect.Closed"));
     }
 
     #[tokio::test]

@@ -9,6 +9,10 @@ The local patch adds `ServerSessionTimeouts` and
 two-second handshake-read timeout, 2.5-second session-read timeout, and
 two-second write timeout. Supplying `None` disables an individual timeout.
 
+It also adds `ServerSession::run_with_shutdown`, which can send
+`NetConnection.Connect.Closed` and wait for a publisher to close before the
+server drops the connection.
+
 The chunk reader also retains the preceding timestamp delta per chunk stream.
 When a type-3 chunk starts a new message it advances the timestamp by that
 delta, while continuation chunks retain the current message timestamp. RTMP

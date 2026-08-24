@@ -432,11 +432,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "gst-flvsubinject"
+name = "gst-flvsubmux"
 version = "0.1.0"
 dependencies = [
  "gstreamer",
  "gstreamer-app",
+ "gstreamer-base",
  "gstreamer-check",
 ]
 

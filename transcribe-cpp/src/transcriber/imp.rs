@@ -874,7 +874,7 @@ impl Transcriber {
         // poison the stream for far longer than the silence itself, so hold
         // the head of the stream back until someone speaks. Everything after
         // the gate opens flows straight through.
-        let (warmup, pcm) = {
+        let (warmup, pcm, opening_gap) = {
             let mut state = self.state.lock().unwrap();
 
             let decision = match state.gate.as_mut() {
@@ -927,6 +927,7 @@ impl Transcriber {
             // The timeline is anchored to the first sample the *model* sees,
             // not the first sample that arrived. Both zeros move by the same
             // amount, so word times still land on the audio they describe.
+            let mut opening_gap = None;
             if state.base_pts.is_none() {
                 // The priming chunk is audio as far as the model is concerned,
                 // so its stream clock starts there rather than at the first
@@ -937,13 +938,27 @@ impl Transcriber {
                     .checked_sub(samples_duration(warmup.len() as u64, rate))
                     .unwrap_or(gst::ClockTime::ZERO);
                 gst::debug!(CAT, imp = self, "speech detected, feeding from {armed_at}");
+                // While the VAD gate is closed, advance_gate_timeline covers
+                // every confirmed-silent audio frame. Opening can retain only
+                // part of the current frame, leaving a final silence interval
+                // between that frontier and the first sample handed to the
+                // model. Publish it before moving out_pts: strict sparse-pad
+                // aggregators must never infer this coverage themselves.
+                opening_gap = gate_opening_gap(state.out_pts, armed_at);
                 state.base_pts = Some(base);
                 state.out_pts = Some(armed_at.max(state.out_pts.unwrap_or(armed_at)));
             }
 
-            (warmup, pcm)
+            (warmup, pcm, opening_gap)
         };
         drop(data);
+
+        if let Some((pts, duration)) = opening_gap {
+            gst::trace!(CAT, imp = self, "gate opening gap at {pts} for {duration}");
+            let _ = self
+                .srcpad
+                .push_event(gst::event::Gap::builder(pts).duration(duration).build());
+        }
 
         if pcm.is_empty() {
             return Ok(gst::FlowSuccess::Ok);
@@ -1247,6 +1262,16 @@ fn samples_duration(samples: u64, rate: u64) -> gst::ClockTime {
     gst::ClockTime::SECOND
         .mul_div_floor(samples, rate)
         .unwrap_or(gst::ClockTime::ZERO)
+}
+
+/// Silence confirmed by the VAD inside the frame which opens the gate.
+fn gate_opening_gap(
+    frontier: Option<gst::ClockTime>,
+    first_speech: gst::ClockTime,
+) -> Option<(gst::ClockTime, gst::ClockTime)> {
+    frontier
+        .filter(|frontier| first_speech > *frontier)
+        .map(|frontier| (frontier, first_speech - frontier))
 }
 
 /// Whether this word closes a sentence.
@@ -1727,7 +1752,7 @@ impl ElementImpl for Transcriber {
                 "Transcriber",
                 "Text/Audio/Filter",
                 "Speech to text filter, using transcribe.cpp",
-                "Elliott Darfink <elliott.darfink@gmail.com>",
+                "Elliott Linder <elliott@linder.dev>",
             )
         });
 
@@ -1804,6 +1829,18 @@ impl ElementImpl for Transcriber {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opening_the_vad_gate_covers_the_partial_silence_before_speech() {
+        let silence_frontier = gst::ClockTime::from_nseconds(7_936_000_000);
+        let first_speech = gst::ClockTime::from_nseconds(8_017_375_000);
+        assert_eq!(
+            gate_opening_gap(Some(silence_frontier), first_speech),
+            Some((silence_frontier, gst::ClockTime::from_nseconds(81_375_000)))
+        );
+        assert_eq!(gate_opening_gap(Some(first_speech), first_speech), None);
+        assert_eq!(gate_opening_gap(None, first_speech), None);
+    }
 
     fn ms(value: u64) -> gst::ClockTime {
         gst::ClockTime::from_mseconds(value)

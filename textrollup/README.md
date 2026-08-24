@@ -42,9 +42,8 @@ export GST_PLUGIN_PATH="$PWD/target/release"
 gst-inspect-1.0 textrollup
 ```
 
-To install it permanently, copy
-`target/release/libgsttextrollup.so` (`.dylib` on macOS) into a GStreamer plugin
-directory.
+To install it permanently, use `cargo-c` and follow the workspace
+[installation instructions](../README.md#install).
 
 ## Try it
 

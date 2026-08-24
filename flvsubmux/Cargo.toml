@@ -1,21 +1,23 @@
 [package]
-name = "gst-flvsubinject"
+name = "gst-flvsubmux"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
+authors = ["Elliott Linder <elliott@linder.dev>"]
 license = "MPL-2.0"
-description = "GStreamer element that injects FLV script-data subtitle tags into a muxed FLV stream"
-repository = "https://github.com/darfink/gst-flvsubinject"
+description = "GStreamer element that strictly aggregates timed text into a muxed FLV stream"
+repository = "https://github.com/darfink/gst-plugins-darfink"
 
 [dependencies]
 gst = { package = "gstreamer", version = "0.25", features = ["v1_20"] }
+gst_base = { package = "gstreamer-base", version = "0.25", features = ["v1_20"] }
 
 [dev-dependencies]
 gst-check = { package = "gstreamer-check", version = "0.25" }
 gst_app = { version = "0.25", package = "gstreamer-app" }
 
 [lib]
-name = "gstflvsubinject"
+name = "gstflvsubmux"
 crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
 

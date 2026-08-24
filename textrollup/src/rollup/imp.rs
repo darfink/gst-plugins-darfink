@@ -457,7 +457,7 @@ impl ElementImpl for TextRollup {
                 "Text Rollup",
                 "Text/Filter",
                 "Turn word-level text into a fixed roll-up caption window",
-                "Elliott Darfink <elliott.darfink@gmail.com>",
+                "Elliott Linder <elliott@linder.dev>",
             )
         });
         Some(&*ELEMENT_METADATA)

@@ -27,8 +27,8 @@ Expose the built plugin to GStreamer and confirm it registered:
 export GST_PLUGIN_PATH="$PWD/target/release" && gst-inspect-1.0 scufflertmplistensrc
 ```
 
-To install it permanently instead, copy `target/release/libgstscufflertmp.so`
-(`.dylib` on macOS) into your GStreamer plugin directory.
+To install it permanently, use `cargo-c` and follow the workspace
+[installation instructions](../README.md#install).
 
 ## Try it
 
@@ -68,6 +68,7 @@ That runs the listener pipeline on port 1935; publish to
 | `handshake-timeout` | 10s | Per-handshake-read timeout in nanoseconds; 0 disables |
 | `read-timeout` | disabled | Per-read timeout in nanoseconds; 0 disables |
 | `write-timeout` | 10s | Per-write timeout in nanoseconds; 0 disables |
+| `graceful-shutdown-timeout` | 0 | Nanoseconds to wait for an active publisher to close during listener shutdown; 0 closes immediately |
 | `keep-listening` | `false` | Wait for another publisher after disconnect instead of returning EOS |
 
 ## Behaviour
@@ -84,6 +85,11 @@ GAP events during the outage, and posts an element bus message named
 resumed buffer is marked `DISCONT`. Each publisher session emits one FLV header,
 including after a reconnect. A publisher with a mismatched
 application or stream key is rejected without stopping the listener.
+
+When `graceful-shutdown-timeout` is greater than zero, listener shutdown sends
+the RTMP `NetConnection.Connect.Closed` status to an established publisher and
+waits up to the configured duration for it to close. A value of zero preserves
+the immediate socket close behavior.
 
 Publisher lifecycle is also available in-band on the source pad as serialized,
 non-sticky `CUSTOM_DOWNSTREAM` events. For each accepted publisher, the source
@@ -156,9 +162,9 @@ fixture; set `FIXTURE=/path/to.mp4` to use real footage instead, and `PORT_BASE`
 to move off the default five-port range.
 
 It covers publisher accept timeout, stream-key rejection, clean A/V remux and
-EOS, abrupt-disconnect EOS draining, keep-listening reconnects, and
-serialized publisher lifecycle event ordering, and three-video-track plus audio
-multiplexing.
+EOS, abrupt-disconnect EOS draining, graceful listener shutdown,
+keep-listening reconnects, serialized publisher lifecycle event ordering, and
+three-video-track plus audio multiplexing.
 
 ## Design notes
 

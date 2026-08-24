@@ -13,7 +13,7 @@ use gst_base::subclass::base_src::CreateSuccess;
 use gst_base::subclass::prelude::*;
 use scuffle_rtmp::ServerSession;
 use scuffle_rtmp::session::server::{
-  ServerSessionError, ServerSessionTimeouts, SessionData, SessionHandler,
+  ServerSessionError, ServerSessionShutdown, ServerSessionTimeouts, SessionData, SessionHandler,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -24,6 +24,7 @@ const DEFAULT_ACCEPT_TIMEOUT: u64 = 0;
 const DEFAULT_HANDSHAKE_TIMEOUT: u64 = 10_000_000_000;
 const DEFAULT_READ_TIMEOUT: u64 = 0;
 const DEFAULT_WRITE_TIMEOUT: u64 = 10_000_000_000;
+const DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT: u64 = 0;
 const DEFAULT_KEEP_LISTENING: bool = false;
 const OUTPUT_QUEUE_CAPACITY: usize = 1;
 const CREATE_POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -53,6 +54,7 @@ struct Settings {
   handshake_timeout: u64,
   read_timeout: u64,
   write_timeout: u64,
+  graceful_shutdown_timeout: u64,
   keep_listening: bool,
   application: Option<String>,
   stream_key: Option<String>,
@@ -68,6 +70,7 @@ impl Default for Settings {
       handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT,
       read_timeout: DEFAULT_READ_TIMEOUT,
       write_timeout: DEFAULT_WRITE_TIMEOUT,
+      graceful_shutdown_timeout: DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT,
       keep_listening: DEFAULT_KEEP_LISTENING,
       application: None,
       stream_key: None,
@@ -90,6 +93,7 @@ struct State {
   receiver: Option<flume::Receiver<WorkerOutput>>,
   sender: Option<flume::Sender<WorkerOutput>>,
   cancellation: Option<CancellationToken>,
+  graceful_shutdown: Option<Arc<AtomicBool>>,
   worker: Option<JoinHandle<()>>,
 }
 
@@ -155,6 +159,12 @@ impl ObjectImpl for ScuffleRtmpListenSrc {
           .default_value(DEFAULT_WRITE_TIMEOUT)
           .mutable_ready()
           .build(),
+        glib::ParamSpecUInt64::builder("graceful-shutdown-timeout")
+          .nick("Graceful shutdown timeout")
+          .blurb("Nanoseconds to wait for an RTMP publisher to close during listener shutdown (0 closes immediately)")
+          .default_value(DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT)
+          .mutable_ready()
+          .build(),
         glib::ParamSpecBoolean::builder("keep-listening")
           .nick("Keep listening")
           .blurb("Keep waiting for another RTMP publisher after disconnect")
@@ -207,6 +217,11 @@ impl ObjectImpl for ScuffleRtmpListenSrc {
       "write-timeout" => {
         settings.write_timeout = value.get().expect("write-timeout type checked upstream");
       }
+      "graceful-shutdown-timeout" => {
+        settings.graceful_shutdown_timeout = value
+          .get()
+          .expect("graceful-shutdown-timeout type checked upstream");
+      }
       "keep-listening" => {
         settings.keep_listening = value.get().expect("keep-listening type checked upstream");
       }
@@ -231,6 +246,7 @@ impl ObjectImpl for ScuffleRtmpListenSrc {
       "handshake-timeout" => settings.handshake_timeout.to_value(),
       "read-timeout" => settings.read_timeout.to_value(),
       "write-timeout" => settings.write_timeout.to_value(),
+      "graceful-shutdown-timeout" => settings.graceful_shutdown_timeout.to_value(),
       "keep-listening" => settings.keep_listening.to_value(),
       "application" => settings.application.to_value(),
       "stream-key" => settings.stream_key.to_value(),
@@ -257,7 +273,7 @@ impl ElementImpl for ScuffleRtmpListenSrc {
         "Scuffle RTMP listener source",
         "Source/Network",
         "Accepts one RTMP publisher and outputs an FLV byte stream",
-        "Crowdcast",
+        "Elliott Linder <elliott@linder.dev>",
       )
     });
 
@@ -321,9 +337,11 @@ impl BaseSrcImpl for ScuffleRtmpListenSrc {
 
     let (sender, receiver) = flume::bounded(OUTPUT_QUEUE_CAPACITY);
     let cancellation = CancellationToken::new();
+    let graceful_shutdown = Arc::new(AtomicBool::new(false));
     let (startup_sender, startup_receiver) = std::sync::mpsc::sync_channel(1);
     let worker_sender = sender.clone();
     let worker_cancellation = cancellation.clone();
+    let worker_graceful_shutdown = graceful_shutdown.clone();
     let worker_settings = settings.clone();
     let worker = std::thread::Builder::new()
       .name("scuffle-rtmp-listener".into())
@@ -332,6 +350,7 @@ impl BaseSrcImpl for ScuffleRtmpListenSrc {
           listener,
           worker_sender,
           worker_cancellation,
+          worker_graceful_shutdown,
           worker_settings,
           startup_sender,
         );
@@ -375,6 +394,7 @@ impl BaseSrcImpl for ScuffleRtmpListenSrc {
       state.receiver = Some(receiver);
       state.sender = Some(sender);
       state.cancellation = Some(cancellation);
+      state.graceful_shutdown = Some(graceful_shutdown);
       state.worker = Some(worker);
     }
 
@@ -401,16 +421,25 @@ impl BaseSrcImpl for ScuffleRtmpListenSrc {
     gst::info!(CAT, imp = self, "Stopping RTMP listener");
     self.flushing.store(true, Ordering::Release);
     self.new_stream_pending.store(false, Ordering::Release);
+    let graceful_shutdown_timeout = self
+      .settings
+      .lock()
+      .expect("settings mutex poisoned")
+      .graceful_shutdown_timeout;
 
-    let (sender, cancellation, worker) = {
+    let (sender, cancellation, graceful_shutdown, worker) = {
       let mut state = self.state.lock().expect("state mutex poisoned");
       let sender = state.sender.take();
       let cancellation = state.cancellation.take();
+      let graceful_shutdown = state.graceful_shutdown.take();
       let worker = state.worker.take();
       state.receiver.take();
-      (sender, cancellation, worker)
+      (sender, cancellation, graceful_shutdown, worker)
     };
 
+    if let Some(graceful_shutdown) = graceful_shutdown {
+      graceful_shutdown.store(graceful_shutdown_timeout > 0, Ordering::Release);
+    }
     if let Some(sender) = sender {
       let _ = sender.try_send(WorkerOutput::Wake);
     }
@@ -548,6 +577,7 @@ fn run_worker(
   listener: TcpListener,
   output: flume::Sender<WorkerOutput>,
   cancellation: CancellationToken,
+  graceful_shutdown: Arc<AtomicBool>,
   settings: Settings,
   startup: std::sync::mpsc::SyncSender<Result<(), String>>,
 ) {
@@ -640,10 +670,19 @@ fn run_worker(
         session_read: nanoseconds_timeout(settings.read_timeout),
         write: nanoseconds_timeout(settings.write_timeout),
       });
-      let result = tokio::select! {
-        _ = cancellation.cancelled() => return,
-        result = session.run() => result,
-      };
+      let shutdown_cancellation = cancellation.clone();
+      let shutdown_graceful = graceful_shutdown.clone();
+      let shutdown_timeout = Duration::from_nanos(settings.graceful_shutdown_timeout);
+      let result = session
+        .run_with_shutdown(async move {
+          shutdown_cancellation.cancelled().await;
+          if shutdown_graceful.load(Ordering::Acquire) {
+            ServerSessionShutdown::Graceful(shutdown_timeout)
+          } else {
+            ServerSessionShutdown::Abrupt
+          }
+        })
+        .await;
 
       if settings.keep_listening && rejected.load(Ordering::Acquire) {
         gst::info!(CAT, "Rejected RTMP publisher; continuing to listen");

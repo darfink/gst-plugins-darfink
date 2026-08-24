@@ -6,11 +6,9 @@
 
 use gst::glib;
 
-pub mod gapkeeper;
 pub mod rollup;
 
 fn plugin_init(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
-    gapkeeper::register(plugin)?;
     rollup::register(plugin)?;
     Ok(())
 }

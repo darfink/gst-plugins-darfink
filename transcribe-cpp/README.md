@@ -22,11 +22,8 @@ and confirm it registered:
 export GST_PLUGIN_PATH="$PWD/target/release" && gst-inspect-1.0 transcribecpptranscriber
 ```
 
-To install it permanently instead, use [cargo-c]:
-
-```bash
-cargo cbuild --release -p gst-transcribe-cpp
-```
+To install it permanently, use [cargo-c] and follow the workspace
+[installation instructions](../README.md#install).
 
 Backends are cargo features forwarded to `transcribe-cpp-sys`. `metal` is on by
 default, so a Linux CPU build needs `--no-default-features`:
@@ -72,11 +69,11 @@ transcribers, so ecosystem formatters can be substituted directly:
 ```bash
 # Low-latency cumulative roll-up replacement states
 ... ! transcribecpptranscriber model-path=model.gguf \
-    ! textrollup clear-after=3000 ! flvsubinject input-mode=replacement
+    ! textrollup clear-after=3000 ! flvsubmux input-mode=replacement
 
 # Conventional finite-duration wrapped cues
 ... ! transcribecpptranscriber model-path=model.gguf \
-    ! textwrap ! flvsubinject input-mode=timed
+    ! textwrap ! flvsubmux input-mode=timed
 ```
 
 Swap `filesrc` for any live source to transcribe live; the element takes its

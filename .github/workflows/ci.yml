@@ -38,15 +38,15 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
 
-      - run: cargo clippy --package gst-flvsubinject --package gst-textrollup --all-targets --all-features -- -D warnings
-      - run: cargo build --release -p gst-flvsubinject -p gst-textrollup
-      - run: cargo test -p gst-flvsubinject -p gst-textrollup
+      - run: cargo clippy --package gst-flvsubmux --package gst-textrollup --all-targets --all-features -- -D warnings
+      - run: cargo build --release -p gst-flvsubmux -p gst-textrollup
+      - run: cargo test -p gst-flvsubmux -p gst-textrollup
 
       - name: Verify plugins register
         env:
           GST_PLUGIN_PATH: ${{ github.workspace }}/target/release
         run: |
-          gst-inspect-1.0 flvsubinject
+          gst-inspect-1.0 flvsubmux
           gst-inspect-1.0 textrollup
 
   transcribe:

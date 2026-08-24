@@ -1,4 +1,4 @@
-diff -ruN a/.cargo_vcs_info.json b/.cargo_vcs_info.json
+diff -ruN -x target -x .cargo-checksum.json a/.cargo_vcs_info.json b/.cargo_vcs_info.json
 --- a/.cargo_vcs_info.json	1970-01-01 01:00:01.000000000 +0100
 +++ b/.cargo_vcs_info.json	1970-01-01 01:00:00.000000000 +0100
 @@ -1,6 +0,0 @@
@@ -9,9 +9,9 @@ diff -ruN a/.cargo_vcs_info.json b/.cargo_vcs_info.json
 -  "path_in_vcs": "crates/rtmp"
 -}
 \ No newline at end of file
-diff -ruN a/Cargo.lock b/Cargo.lock
+diff -ruN -x target -x .cargo-checksum.json a/Cargo.lock b/Cargo.lock
 --- a/Cargo.lock	1970-01-01 01:00:01.000000000 +0100
-+++ b/Cargo.lock	2026-08-05 19:47:30.059122967 +0200
++++ b/Cargo.lock	2026-08-23 16:57:46.093490749 +0200
 @@ -3,55 +3,25 @@
  version = 4
  
@@ -1012,7 +1012,18 @@ diff -ruN a/Cargo.lock b/Cargo.lock
 +version = "1.0.23"
 +source = "registry+https://github.com/rust-lang/crates.io-index"
 +checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
-diff -ruN a/Cargo.toml.orig b/Cargo.toml.orig
+diff -ruN -x target -x .cargo-checksum.json a/Cargo.toml b/Cargo.toml
+--- a/Cargo.toml	1970-01-01 01:00:01.000000000 +0100
++++ b/Cargo.toml	2026-08-23 16:57:46.091499106 +0200
+@@ -138,6 +138,7 @@
+ features = [
+     "io-util",
+     "sync",
++    "time",
+ ]
+ 
+ [dependencies.tracing]
+diff -ruN -x target -x .cargo-checksum.json a/Cargo.toml.orig b/Cargo.toml.orig
 --- a/Cargo.toml.orig	2006-07-24 03:21:28.000000000 +0200
 +++ b/Cargo.toml.orig	1970-01-01 01:00:00.000000000 +0100
 @@ -1,85 +0,0 @@
@@ -1101,9 +1112,9 @@ diff -ruN a/Cargo.toml.orig b/Cargo.toml.orig
 -crates-io = true
 -github-actions = { workflows = "ci.yaml" }
 -codecov = true
-diff -ruN a/examples/basic.rs b/examples/basic.rs
+diff -ruN -x target -x .cargo-checksum.json a/examples/basic.rs b/examples/basic.rs
 --- a/examples/basic.rs	2006-07-24 03:21:28.000000000 +0200
-+++ b/examples/basic.rs	2026-08-18 23:18:59.101278709 +0200
++++ b/examples/basic.rs	2026-08-23 16:57:46.095026063 +0200
 @@ -1,5 +1,3 @@
 -use std::io::Cursor;
 -
@@ -1125,10 +1136,10 @@ diff -ruN a/examples/basic.rs b/examples/basic.rs
              }
              SessionData::Amf0 { data, timestamp } => {
                  tracing::info!("amf0 data, timestamp: {timestamp}, data: {data:?}");
-diff -ruN a/LOCAL_CHANGES.md b/LOCAL_CHANGES.md
+diff -ruN -x target -x .cargo-checksum.json a/LOCAL_CHANGES.md b/LOCAL_CHANGES.md
 --- a/LOCAL_CHANGES.md	1970-01-01 01:00:00.000000000 +0100
-+++ b/LOCAL_CHANGES.md	2026-08-07 10:15:16.304073999 +0200
-@@ -0,0 +1,29 @@
++++ b/LOCAL_CHANGES.md	2026-08-23 16:57:46.094099241 +0200
+@@ -0,0 +1,33 @@
 +# Local changes
 +
 +This is `scuffle-rtmp` 0.2.3 from crates.io, licensed under MIT or
@@ -1139,6 +1150,10 @@ diff -ruN a/LOCAL_CHANGES.md b/LOCAL_CHANGES.md
 +`ServerSession::with_timeouts`. The defaults on that type retain upstream's
 +two-second handshake-read timeout, 2.5-second session-read timeout, and
 +two-second write timeout. Supplying `None` disables an individual timeout.
++
++It also adds `ServerSession::run_with_shutdown`, which can send
++`NetConnection.Connect.Closed` and wait for a publisher to close before the
++server drops the connection.
 +
 +The chunk reader also retains the preceding timestamp delta per chunk stream.
 +When a type-3 chunk starts a new message it advances the timestamp by that
@@ -1158,9 +1173,9 @@ diff -ruN a/LOCAL_CHANGES.md b/LOCAL_CHANGES.md
 +the Adobe stream id, but `rtmp2sink` sends the stream name; the reader treats
 +that as unrecognized and the session resolves it against the streams this
 +connection publishes instead of dropping a healthy publisher.
-diff -ruN a/src/chunk/reader.rs b/src/chunk/reader.rs
+diff -ruN -x target -x .cargo-checksum.json a/src/chunk/reader.rs b/src/chunk/reader.rs
 --- a/src/chunk/reader.rs	2006-07-24 03:21:28.000000000 +0200
-+++ b/src/chunk/reader.rs	2026-08-05 19:47:30.066201787 +0200
++++ b/src/chunk/reader.rs	2026-08-23 16:57:46.099279511 +0200
 @@ -29,6 +29,13 @@
      /// chunk header)
      previous_chunk_headers: HashMap<u32, ChunkMessageHeader>,
@@ -1372,9 +1387,9 @@ diff -ruN a/src/chunk/reader.rs b/src/chunk/reader.rs
      fn test_incomplete_header() {
          let mut buf = BytesMut::new();
          buf.extend_from_slice(&[0b00_000000]);
-diff -ruN a/src/command_messages/netstream/reader.rs b/src/command_messages/netstream/reader.rs
+diff -ruN -x target -x .cargo-checksum.json a/src/command_messages/netstream/reader.rs b/src/command_messages/netstream/reader.rs
 --- a/src/command_messages/netstream/reader.rs	2006-07-24 03:21:28.000000000 +0200
-+++ b/src/command_messages/netstream/reader.rs	2026-08-05 19:47:30.075627907 +0200
++++ b/src/command_messages/netstream/reader.rs	2026-08-23 16:57:46.109210932 +0200
 @@ -1,6 +1,7 @@
  //! Reading [`NetStreamCommand`].
  
@@ -1403,9 +1418,9 @@ diff -ruN a/src/command_messages/netstream/reader.rs b/src/command_messages/nets
              }
              "closeStream" => Ok(Some(Self::CloseStream)),
              "receiveAudio" => {
-diff -ruN a/src/command_messages/writer.rs b/src/command_messages/writer.rs
+diff -ruN -x target -x .cargo-checksum.json a/src/command_messages/writer.rs b/src/command_messages/writer.rs
 --- a/src/command_messages/writer.rs	2006-07-24 03:21:28.000000000 +0200
-+++ b/src/command_messages/writer.rs	2026-08-05 19:47:30.074356736 +0200
++++ b/src/command_messages/writer.rs	2026-08-23 16:57:46.108149112 +0200
 @@ -35,17 +35,39 @@
  }
  
@@ -1467,9 +1482,9 @@ diff -ruN a/src/command_messages/writer.rs b/src/command_messages/writer.rs
          .unwrap_err();
  
          assert!(matches!(err, RtmpError::Command(CommandError::NoClientImplementation)));
-diff -ruN a/src/lib.rs b/src/lib.rs
+diff -ruN -x target -x .cargo-checksum.json a/src/lib.rs b/src/lib.rs
 --- a/src/lib.rs	2006-07-24 03:21:28.000000000 +0200
-+++ b/src/lib.rs	2026-08-18 23:22:03.860328324 +0200
++++ b/src/lib.rs	2026-08-23 16:57:46.102980716 +0200
 @@ -161,6 +161,11 @@
          let addr = listener.local_addr().unwrap();
  
@@ -1512,9 +1527,9 @@ diff -ruN a/src/lib.rs b/src/lib.rs
                  "-r",
                  "30",
                  "-t",
-diff -ruN a/src/session/server/error.rs b/src/session/server/error.rs
+diff -ruN -x target -x .cargo-checksum.json a/src/session/server/error.rs b/src/session/server/error.rs
 --- a/src/session/server/error.rs	2006-07-24 03:21:28.000000000 +0200
-+++ b/src/session/server/error.rs	2026-08-05 19:47:30.076384202 +0200
++++ b/src/session/server/error.rs	2026-08-23 16:57:46.109844675 +0200
 @@ -15,4 +15,7 @@
      /// Invalid chunk size.
      #[error("invalid chunk size: {0}")]
@@ -1523,9 +1538,9 @@ diff -ruN a/src/session/server/error.rs b/src/session/server/error.rs
 +    #[error("invalid acknowledgement window size: {0}")]
 +    InvalidAcknowledgementWindowSize(u32),
  }
-diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
+diff -ruN -x target -x .cargo-checksum.json a/src/session/server/mod.rs b/src/session/server/mod.rs
 --- a/src/session/server/mod.rs	2006-07-24 03:21:28.000000000 +0200
-+++ b/src/session/server/mod.rs	2026-08-05 19:47:30.077163622 +0200
++++ b/src/session/server/mod.rs	2026-08-23 16:57:46.110463209 +0200
 @@ -1,11 +1,12 @@
  //! RTMP server session.
  
@@ -1540,7 +1555,23 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
  use tokio::io::{AsyncReadExt, AsyncWriteExt};
  
  use crate::chunk::CHUNK_SIZE;
-@@ -38,6 +39,30 @@
+@@ -32,12 +33,46 @@
+ pub use error::ServerSessionError;
+ pub use handler::{SessionData, SessionHandler};
+ 
++/// How a server session should react when its owner shuts down.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum ServerSessionShutdown {
++    /// Drop the session immediately without sending an RTMP shutdown message.
++    Abrupt,
++    /// Send the server-side connection-closed status and wait for the client
++    /// to close, up to the supplied timeout.
++    Graceful(Duration),
++}
++
+ // The default acknowledgement window size that is used until the client sends a
+ // new acknowledgement window size.
+ // This is a common value used by other media servers as well.
  // - https://github.com/FFmpeg/FFmpeg/blob/154c00514d889d27ae84a1001e00f9032fdc1c54/libavformat/rtmpproto.c#L2850
  const DEFAULT_ACKNOWLEDGEMENT_WINDOW_SIZE: u32 = 2_500_000; // 2.5 MB
  
@@ -1571,7 +1602,7 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
  /// A RTMP server session that is used to communicate with a client.
  ///
  /// This provides a high-level API to drive a RTMP session.
-@@ -66,6 +91,8 @@
+@@ -66,6 +101,8 @@
      /// The number of bytes read from the stream. Value wraps when reaching u32::MAX.
      /// This is used to know when to send acknoledgements.
      sequence_number: u32,
@@ -1580,7 +1611,7 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
      /// Buffer to read data into
      read_buf: BytesMut,
      /// Buffer to write data to
-@@ -81,6 +108,8 @@
+@@ -81,6 +118,8 @@
      chunk_writer: ChunkWriter,
      /// Is Publishing
      publishing_stream_ids: Vec<u32>,
@@ -1589,7 +1620,7 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
  }
  
  impl<S, H> ServerSession<S, H> {
-@@ -95,12 +124,14 @@
+@@ -95,12 +134,14 @@
              handler,
              acknowledgement_window_size: DEFAULT_ACKNOWLEDGEMENT_WINDOW_SIZE,
              sequence_number: 0,
@@ -1604,7 +1635,7 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
          }
      }
  
-@@ -109,6 +140,12 @@
+@@ -109,21 +150,50 @@
          self.ctx = Some(ctx);
          self
      }
@@ -1617,7 +1648,110 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
  }
  
  impl<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin, H: SessionHandler> ServerSession<S, H> {
-@@ -173,12 +210,11 @@
+-    /// Run the session to completion
++    /// Run the session to completion.
++    ///
+     /// The result of the return value will be true if all publishers have
+-    /// disconnected If any publishers are still connected, the result will be
+-    /// false This can be used to detect non-graceful disconnects (ie. the
+-    /// client crashed)
+-    pub async fn run(mut self) -> Result<bool, crate::error::RtmpError> {
++    /// disconnected. If any publishers are still connected, the result will
++    /// be false. This can be used to detect non-graceful disconnects (ie. the
++    /// client crashed).
++    pub async fn run(self) -> Result<bool, crate::error::RtmpError> {
++        self.run_with_shutdown(std::future::pending()).await
++    }
++
++    /// Run the session while listening for an owner shutdown request.
++    ///
++    /// An abrupt request returns immediately and drops the connection. A
++    /// graceful request sends `NetConnection.Connect.Closed`, flushes it, and
++    /// continues driving the session until the client closes or the timeout
++    /// expires.
++    pub async fn run_with_shutdown<F>(mut self, shutdown: F) -> Result<bool, crate::error::RtmpError>
++    where
++        F: Future<Output = ServerSessionShutdown>,
++    {
+         let ctx = self.ctx.clone().unwrap_or_else(scuffle_context::Context::global);
++        tokio::pin!(shutdown);
+ 
+         let mut handshaker = HandshakeServer::default();
+         // Run the handshake to completion
+         loop {
+-            match self.drive_handshake(&mut handshaker).with_context(&ctx).await {
++            let handshake_result = {
++                let handshake = self.drive_handshake(&mut handshaker).with_context(&ctx);
++                tokio::pin!(handshake);
++                tokio::select! {
++                    shutdown = &mut shutdown => return Ok(matches!(shutdown, ServerSessionShutdown::Abrupt)),
++                    result = &mut handshake => result,
++                }
++            };
++            match handshake_result {
+                 Some(Ok(false)) => self.flush().await?, // Continue driving
+                 Some(Ok(true)) => break,                // Handshake is complete
+                 Some(Err(e)) => return Err(e),
+@@ -139,7 +209,10 @@
+ 
+         // Drive the session to completion
+         loop {
+-            match self.drive().await {
++            match tokio::select! {
++                shutdown = &mut shutdown => return self.handle_shutdown(shutdown).await,
++                result = self.drive() => result,
++            } {
+                 Ok(true) => self.flush().await?, // Continue driving
+                 Ok(false) => break,              // Client has closed the connection
+                 Err(err) if err.is_client_closed() => {
+@@ -159,6 +232,46 @@
+         Ok(self.publishing_stream_ids.is_empty())
+     }
+ 
++    async fn handle_shutdown(&mut self, shutdown: ServerSessionShutdown) -> Result<bool, crate::error::RtmpError> {
++        match shutdown {
++            ServerSessionShutdown::Abrupt => Ok(false),
++            ServerSessionShutdown::Graceful(timeout) => {
++                self.send_connection_closed().await?;
++
++                let deadline = tokio::time::sleep(timeout);
++                tokio::pin!(deadline);
++                loop {
++                    match tokio::select! {
++                        _ = &mut deadline => break,
++                        result = self.drive() => result,
++                    } {
++                        Ok(true) => self.flush().await?,
++                        Ok(false) => break,
++                        Err(error) if error.is_client_closed() => break,
++                        Err(error) => return Err(error),
++                    }
++                }
++
++                Ok(false)
++            }
++        }
++    }
++
++    async fn send_connection_closed(&mut self) -> Result<(), crate::error::RtmpError> {
++        Command {
++            command_type: CommandType::OnStatus(OnStatus {
++                level: CommandResultLevel::Status,
++                code: OnStatusCode::NET_CONNECTION_CONNECT_CLOSED,
++                description: Some("The server is shutting down.".into()),
++                others: None,
++            }),
++            transaction_id: 0.0,
++        }
++        .write(&mut self.write_buf, &self.chunk_writer, 0)?;
++
++        self.flush().await
++    }
++
+     /// This drives the first stage of the session.
+     /// It is used to do the handshake with the client.
+     /// The handshake is the first thing that happens when a client connects to a
+@@ -173,12 +286,11 @@
  
          let mut bytes_read = 0;
          while bytes_read < READ_SIZE {
@@ -1635,7 +1769,7 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
              bytes_read += n;
  
              self.sequence_number = self.sequence_number.wrapping_add(n.try_into().unwrap_or(u32::MAX));
-@@ -243,39 +279,17 @@
+@@ -243,39 +355,17 @@
          } else {
              self.read_buf.reserve(CHUNK_SIZE);
  
@@ -1681,7 +1815,7 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
          }
  
          self.process_chunks().await?;
-@@ -378,7 +392,17 @@
+@@ -378,7 +468,17 @@
                      .await?;
              }
              CommandType::Unknown(unknown_command) => {
@@ -1700,7 +1834,7 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
              }
              // ignore everything else
              _ => {}
-@@ -403,10 +427,38 @@
+@@ -403,10 +503,38 @@
      /// from the client.
      fn on_acknowledgement_window_size(&mut self, acknowledgement_window_size: u32) -> Result<(), crate::error::RtmpError> {
          tracing::debug!(acknowledgement_window_size = %acknowledgement_window_size, "received new acknowledgement window size");
@@ -1739,7 +1873,7 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
      /// on_command_connect is called when we receive a amf0 command message with
      /// the name "connect" We then handle the connect message
      /// This is called when the client first connects to the server
-@@ -417,12 +469,12 @@
+@@ -417,12 +545,12 @@
          connect: NetConnectionCommandConnect<'_>,
      ) -> Result<(), crate::error::RtmpError> {
          ProtocolControlMessageWindowAcknowledgementSize {
@@ -1754,7 +1888,7 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
              limit_type: ProtocolControlMessageSetPeerBandwidthLimitType::Dynamic,
          }
          .write(&mut self.write_buf, &self.chunk_writer)?;
-@@ -436,7 +488,7 @@
+@@ -436,7 +564,7 @@
              command_type: CommandType::NetConnection(result),
              transaction_id,
          }
@@ -1763,7 +1897,7 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
  
          Ok(())
      }
-@@ -455,7 +507,7 @@
+@@ -455,7 +583,7 @@
              command_type: CommandType::NetConnection(NetConnectionCommand::CreateStreamResult { stream_id: 1.0 }),
              transaction_id,
          }
@@ -1772,7 +1906,7 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
  
          Ok(())
      }
-@@ -486,7 +538,8 @@
+@@ -486,7 +614,8 @@
              }),
              transaction_id,
          }
@@ -1782,7 +1916,7 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
  
          Ok(())
      }
-@@ -521,21 +574,112 @@
+@@ -521,21 +650,132 @@
              }),
              transaction_id,
          }
@@ -1842,6 +1976,26 @@ diff -ruN a/src/session/server/mod.rs b/src/session/server/mod.rs
 +    fn session() -> ServerSession<tokio::io::DuplexStream, Handler> {
 +        let (server, _client) = tokio::io::duplex(64);
 +        ServerSession::new(server, Handler)
++    }
++
++    #[tokio::test]
++    async fn graceful_shutdown_sends_connection_closed_status() {
++        let (server, mut client) = tokio::io::duplex(4096);
++        let mut session = ServerSession::new(server, Handler);
++        session.publishing_stream_ids.push(1);
++
++        session
++            .send_connection_closed()
++            .await
++            .expect("connection-closed status");
++
++        let mut wire = vec![0; 4096];
++        let length = tokio::io::AsyncReadExt::read(&mut client, &mut wire)
++            .await
++            .expect("read connection-closed status");
++        assert!(wire[..length]
++            .windows(b"NetConnection.Connect.Closed".len())
++            .any(|window| window == b"NetConnection.Connect.Closed"));
 +    }
 +
 +    #[tokio::test]

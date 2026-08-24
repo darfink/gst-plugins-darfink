@@ -2,6 +2,7 @@
 name = "gst-scuffle-rtmp"
 version = "0.1.0"
 edition = "2024"
+authors = ["Elliott Linder <elliott@linder.dev>"]
 description = "GStreamer source plugin for accepting an RTMP publisher with Scuffle"
 license = "MIT OR Apache-2.0"
 publish = false
@@ -10,6 +11,9 @@ repository = "https://github.com/darfink/gst-scuffle-rtmp"
 [lib]
 name = "gstscufflertmp"
 crate-type = ["cdylib", "rlib"]
+
+[features]
+capi = []
 
 [dependencies]
 bytes = "1.12"
@@ -22,3 +26,17 @@ tokio-util = "0.7"
 
 [build-dependencies]
 gst-plugin-version-helper = "0.8.4"
+
+[package.metadata.capi]
+min_version = "0.9.21"
+
+[package.metadata.capi.header]
+enabled = false
+
+[package.metadata.capi.library]
+install_subdir = "gstreamer-1.0"
+versioning = false
+import_library = false
+
+[package.metadata.capi.pkg_config]
+requires_private = "gstreamer-1.0, gstreamer-base-1.0, gobject-2.0, glib-2.0, gmodule-2.0"

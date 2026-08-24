@@ -3,6 +3,7 @@
 set -euo pipefail
 
 repo_root=${REPO_ROOT:-$(git rev-parse --show-toplevel)}
+test_dir=$(cd "$(dirname "$0")" && pwd)
 plugin_path=${GST_PLUGIN_PATH:-"$repo_root/target/debug"}
 port_base=${PORT_BASE:-20540}
 tmp_dir=$(mktemp -d /tmp/gst-scuffle-rtmp-integration.XXXXXX)
@@ -12,6 +13,7 @@ fixture=${FIXTURE:-"$tmp_dir/fixture.mp4"}
 registry="$tmp_dir/registry.bin"
 gst_pid=
 publisher_pid=
+probe_pid=
 
 cleanup_processes() {
   if [[ -n $publisher_pid ]] && kill -0 "$publisher_pid" 2>/dev/null; then
@@ -22,8 +24,13 @@ cleanup_processes() {
     kill -INT "$gst_pid" 2>/dev/null || true
     wait "$gst_pid" 2>/dev/null || true
   fi
+  if [[ -n $probe_pid ]] && kill -0 "$probe_pid" 2>/dev/null; then
+    kill -INT "$probe_pid" 2>/dev/null || true
+    wait "$probe_pid" 2>/dev/null || true
+  fi
   publisher_pid=
   gst_pid=
+  probe_pid=
 }
 
 cleanup() {
@@ -76,6 +83,24 @@ wait_for_log() {
   done
   sed -n '1,160p' "$log" >&2
   fail "GStreamer pipeline did not log: $pattern"
+}
+
+wait_for_probe_log() {
+  local log=$1
+  local pattern=$2
+  local attempt
+  for attempt in {1..100}; do
+    if grep -q "$pattern" "$log" 2>/dev/null; then
+      return 0
+    fi
+    if ! kill -0 "$probe_pid" 2>/dev/null; then
+      sed -n '1,160p' "$log" >&2
+      fail "Lifecycle probe exited before logging: $pattern"
+    fi
+    sleep 0.05
+  done
+  sed -n '1,160p' "$log" >&2
+  fail "Lifecycle probe did not log: $pattern"
 }
 
 start_pipeline() {
@@ -142,6 +167,32 @@ test_rejected_stream_key() {
   echo "PASS rejected stream key"
 }
 
+test_rejected_stream_key_keep_listening() {
+  local port=$((port_base + 6))
+  local log="$tmp_dir/rejected-key-keep-listening.log"
+  check_port "$port"
+  start_pipeline "$log" -m \
+    scufflertmplistensrc address=127.0.0.1 port="$port" application=live stream-key=allowed keep-listening=true \
+    ! fakesink
+
+  ffmpeg -hide_banner -loglevel error -i "$fixture" -t 1 \
+    -map 0:v:0 -an -c:v copy -f flv \
+    "rtmp://127.0.0.1:$port/wrong/stream" >"$tmp_dir/rejected-key-keep-ffmpeg.log" 2>&1 || true
+  wait_for_log "$log" "Rejected RTMP publish"
+  kill -0 "$gst_pid" 2>/dev/null || fail "keep-listening pipeline stopped after a rejected publisher"
+  grep -q "Could not read from resource" "$log" &&
+    fail "Rejected publisher caused a keep-listening source error"
+
+  ffmpeg -hide_banner -loglevel error -i "$fixture" -t 1 \
+    -map 0:v:0 -an -c:v copy -f flv \
+    "rtmp://127.0.0.1:$port/live/allowed" >"$tmp_dir/rejected-key-keep-valid-ffmpeg.log" 2>&1
+  wait_for_log "$log" "Accepted RTMP publish"
+  kill -INT "$gst_pid" 2>/dev/null || true
+  wait "$gst_pid" 2>/dev/null || true
+  gst_pid=
+  echo "PASS rejected stream key with keep-listening"
+}
+
 test_clean_av_and_eos() {
   local port=$((port_base + 2))
   local log="$tmp_dir/clean-av.log"
@@ -190,6 +241,26 @@ test_abrupt_disconnect_drains_eos() {
   echo "PASS abrupt disconnect drains as EOS"
 }
 
+test_graceful_shutdown_notifies_publisher() {
+  local port=$((port_base + 8))
+  local log="$tmp_dir/graceful-shutdown.log"
+  check_port "$port"
+  start_pipeline "$log" -e \
+    scufflertmplistensrc address=127.0.0.1 port="$port" application=live stream-key=graceful \
+    graceful-shutdown-timeout=500000000 ! fakesink num-buffers=250 sync=false
+
+  ffmpeg -hide_banner -loglevel error -re -stream_loop -1 -i "$fixture" \
+    -map 0:v:0 -map 0:a:0 -c copy -f flv \
+    "rtmp://127.0.0.1:$port/live/graceful" >"$tmp_dir/graceful-ffmpeg.log" 2>&1 &
+  publisher_pid=$!
+  wait_for_log "$log" "Accepted RTMP publish"
+  wait_for_success "$log"
+  wait "$publisher_pid" 2>/dev/null || true
+  publisher_pid=
+  grep -q "Got EOS" "$log" || fail "Graceful shutdown pipeline did not produce EOS"
+  echo "PASS graceful listener shutdown"
+}
+
 test_keep_listening_reconnects() {
   local port=$((port_base + 5))
   local log="$tmp_dir/keep-listening.log"
@@ -229,6 +300,40 @@ test_keep_listening_reconnects() {
   wait "$gst_pid" 2>/dev/null || true
   gst_pid=
   echo "PASS keep-listening reconnect"
+}
+
+test_publish_lifecycle_events() {
+  local port=$((port_base + 7))
+  local log="$tmp_dir/publish-lifecycle.log"
+  check_port "$port"
+
+  GST_PLUGIN_PATH="$plugin_path" \
+    GST_REGISTRY="$registry" \
+    python3 "$test_dir/publish_lifecycle_probe.py" \
+      --port "$port" --publishers 2 >"$log" 2>&1 &
+  probe_pid=$!
+  wait_for_probe_log "$log" "LISTENING"
+
+  ffmpeg -hide_banner -loglevel error -re -stream_loop -1 -i "$fixture" \
+    -map 0:v:0 -map 0:a:0 -c copy -f flv \
+    "rtmp://127.0.0.1:$port/live/lifecycle" >"$tmp_dir/lifecycle-first-ffmpeg.log" 2>&1 &
+  publisher_pid=$!
+  wait_for_probe_log "$log" '"kind":"scufflertmp-publish-start","connection-id":1'
+  kill -KILL "$publisher_pid" 2>/dev/null || true
+  wait "$publisher_pid" 2>/dev/null || true
+  publisher_pid=
+  wait_for_probe_log "$log" '"kind":"scufflertmp-publish-end","connection-id":1'
+
+  ffmpeg -hide_banner -loglevel error -re -i "$fixture" -t 2 \
+    -map 0:v:0 -map 0:a:0 -c copy -f flv \
+    "rtmp://127.0.0.1:$port/live/lifecycle" >"$tmp_dir/lifecycle-second-ffmpeg.log" 2>&1
+
+  if ! wait "$probe_pid"; then
+    sed -n '1,240p' "$log" >&2
+    fail "Lifecycle probe failed"
+  fi
+  probe_pid=
+  echo "PASS publish lifecycle events"
 }
 
 test_multitrack() {
@@ -271,9 +376,12 @@ fi
 
 test_accept_timeout
 test_rejected_stream_key
+test_rejected_stream_key_keep_listening
 test_clean_av_and_eos
 test_abrupt_disconnect_drains_eos
+test_graceful_shutdown_notifies_publisher
 test_keep_listening_reconnects
+test_publish_lifecycle_events
 test_multitrack
 
 echo "All scufflertmplistensrc integration tests passed"
