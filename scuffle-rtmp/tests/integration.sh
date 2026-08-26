@@ -273,7 +273,10 @@ test_keep_listening_reconnects() {
     -map 0:v:0 -map 0:a:0 -c copy -f flv \
     "rtmp://127.0.0.1:$port/live/reconnect" >"$tmp_dir/reconnect-first-ffmpeg.log" 2>&1 &
   publisher_pid=$!
-  wait_for_log "$log" "Accepted RTMP publish"
+  # Match the publish-accept line, not the TCP-accept line: killing ffmpeg
+  # before it has published means there is no publish lifecycle to end and no
+  # connection-removed event to wait for.
+  wait_for_log "$log" "Accepted RTMP publish for app"
   kill -KILL "$publisher_pid" 2>/dev/null || true
   wait "$publisher_pid" 2>/dev/null || true
   publisher_pid=

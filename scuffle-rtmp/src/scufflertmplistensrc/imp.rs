@@ -654,7 +654,11 @@ fn run_worker(
       );
 
       let rejected = Arc::new(AtomicBool::new(false));
-      let connection_id = Arc::new(AtomicU64::new(0));
+      let publish_ids = PublishIds {
+        next: next_connection_id.clone(),
+        current: Arc::new(AtomicU64::new(0)),
+      };
+      let connection_id = publish_ids.current.clone();
       let handler = RtmpHandler::new(
         output.clone(),
         cancellation.clone(),
@@ -662,8 +666,7 @@ fn run_worker(
         settings.stream_key.clone(),
         settings.keep_listening,
         rejected.clone(),
-        next_connection_id.clone(),
-        connection_id.clone(),
+        publish_ids,
       );
       let session = ServerSession::new(stream, handler).with_timeouts(ServerSessionTimeouts {
         handshake_read: nanoseconds_timeout(settings.handshake_timeout),
@@ -783,6 +786,17 @@ fn is_client_disconnect(error: &scuffle_rtmp::error::RtmpError) -> bool {
   }
 }
 
+/// Connection-id plumbing shared with each publish session.
+///
+/// `next` hands out a fresh id on every publish so ids stay unique across
+/// keep-listening reconnects; `current` records the id of the live publish so
+/// the worker can report the end event after the session closes.
+#[derive(Clone)]
+struct PublishIds {
+  next: Arc<AtomicU64>,
+  current: Arc<AtomicU64>,
+}
+
 struct RtmpHandler {
   output: flume::Sender<WorkerOutput>,
   cancellation: CancellationToken,
@@ -803,8 +817,7 @@ impl RtmpHandler {
     stream_key: Option<String>,
     keep_listening: bool,
     rejected: Arc<AtomicBool>,
-    next_connection_id: Arc<AtomicU64>,
-    connection_id: Arc<AtomicU64>,
+    publish_ids: PublishIds,
   ) -> Self {
     Self {
       output,
@@ -813,8 +826,8 @@ impl RtmpHandler {
       stream_key,
       keep_listening,
       rejected,
-      next_connection_id,
-      connection_id,
+      next_connection_id: publish_ids.next,
+      connection_id: publish_ids.current,
       header_sent: false,
     }
   }
@@ -869,12 +882,12 @@ impl SessionHandler for RtmpHandler {
       return Ok(());
     }
 
+    let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
+    self.connection_id.store(connection_id, Ordering::Release);
     gst::info!(
       CAT,
       "Accepted RTMP publish for app '{app_name}', stream id {stream_id}"
     );
-    let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
-    self.connection_id.store(connection_id, Ordering::Release);
     if !send_output(
       &self.output,
       &self.cancellation,
